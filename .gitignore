@@ -1,0 +1,11 @@
+node_modules/
+dist/
+bin/
+obj/
+*.db
+*.db-shm
+*.db-wal
+appsettings.Development.json
+.env
+.env.local
+.DS_Store
