@@ -8,34 +8,33 @@ namespace WellnessAPI.Services;
 public class AuditService
 {
     private readonly ApplicationDbContext _db;
-    private readonly IHttpContextAccessor _http;
+    private readonly IHttpContextAccessor _httpContextAccessor;
 
-    public AuditService(ApplicationDbContext db, IHttpContextAccessor http)
+    public AuditService(ApplicationDbContext db, IHttpContextAccessor httpContextAccessor)
     {
         _db = db;
-        _http = http;
+        _httpContextAccessor = httpContextAccessor;
     }
 
-    public async Task LogAsync(string action, string entity,
-        string? entityId = null, object? oldValues = null, object? newValues = null)
+    public async Task LogAsync(string entity, string action, string? entityId, object? oldValues = null, object? newValues = null)
     {
-        var user = _http.HttpContext?.User;
-        var userId = user?.FindFirst(ClaimTypes.NameIdentifier)?.Value
-            ?? user?.FindFirst("sub")?.Value ?? "anonymous";
-        var email = user?.FindFirst(ClaimTypes.Email)?.Value
-            ?? user?.FindFirst("email")?.Value ?? "anonymous";
+        var user = _httpContextAccessor.HttpContext?.User;
+        var userId = user?.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? user?.FindFirst("sub")?.Value;
+        var userEmail = user?.FindFirst(ClaimTypes.Email)?.Value ?? user?.FindFirst("email")?.Value;
 
-        _db.AuditLogs.Add(new AuditLog
+        var log = new AuditLog
         {
-            UserId = userId,
-            UserEmail = email,
-            Action = action,
             Entity = entity,
+            Action = action,
             EntityId = entityId,
             OldValues = oldValues != null ? JsonSerializer.Serialize(oldValues) : null,
             NewValues = newValues != null ? JsonSerializer.Serialize(newValues) : null,
-            IpAddress = _http.HttpContext?.Connection.RemoteIpAddress?.ToString(),
-        });
+            UserId = userId,
+            UserEmail = userEmail,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _db.AuditLogs.Add(log);
         await _db.SaveChangesAsync();
     }
 }

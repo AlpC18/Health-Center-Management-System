@@ -2,136 +2,92 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using WellnessAPI.Data;
 using WellnessAPI.DTOs;
-using WellnessAPI.Models.Domain;
 using WellnessAPI.Models.Identity;
 using WellnessAPI.Services;
 
 namespace WellnessAPI.Controllers;
 
-/// <summary>
-/// Kontrolluesi për autentifikimin e përdoruesve (Register, Login, Refresh, Password).
-/// </summary>
 [ApiController]
 [Route("api/[controller]")]
 public class AuthController : ControllerBase
 {
-    private readonly UserManager<ApplicationUser> _userManager;
-    private readonly TokenService _tokenService;
-    private readonly ApplicationDbContext _db;
+    private static readonly Dictionary<string, (int Count, DateTime LastAttempt)> _loginAttempts = new();
 
-    public AuthController(UserManager<ApplicationUser> um, TokenService ts, ApplicationDbContext db)
+    private readonly UserManager<ApplicationUser> _userManager;
+    private readonly SignInManager<ApplicationUser> _signInManager;
+    private readonly TokenService _tokenService;
+
+    public AuthController(
+        UserManager<ApplicationUser> userManager,
+        SignInManager<ApplicationUser> signInManager,
+        TokenService tokenService)
     {
-        _userManager = um;
-        _tokenService = ts;
-        _db = db;
+        _userManager = userManager;
+        _signInManager = signInManager;
+        _tokenService = tokenService;
     }
 
-    /// <summary>
-    /// Regjistron një përdorues të ri në sistem.
-    /// </summary>
-    /// <param name="dto">Të dhënat për regjistrim.</param>
-    /// <returns>Token-at e autentifikimit dhe të dhënat e përdoruesit.</returns>
     [HttpPost("register")]
-    public async Task<ActionResult<AuthResponseDto>> Register([FromBody] RegisterDto dto)
+    public async Task<IActionResult> Register([FromBody] RegisterDto dto)
     {
-        if (await _userManager.FindByEmailAsync(dto.Email) is not null)
-            return Conflict(new { message = "EXISTING_ACCOUNT", text = "Kjo llogari ekziston. Ju lutem hyni në sistem." });
-
         var user = new ApplicationUser
         {
-            UserName = dto.Email, Email = dto.Email,
-            FirstName = dto.FirstName, LastName = dto.LastName
+            FirstName = dto.FirstName,
+            LastName = dto.LastName,
+            Email = dto.Email,
+            UserName = dto.Email
         };
+
         var result = await _userManager.CreateAsync(user, dto.Password);
         if (!result.Succeeded)
-            return BadRequest(new { errors = result.Errors.Select(e => e.Description) });
-
-        var role = dto.Role == "Admin" || dto.Role == "Therapist" ? dto.Role : "Klient";
-        await _userManager.AddToRoleAsync(user, role);
-
-        if (role == "Klient")
-        {
-            var klient = new Klient
-            {
-                Emri = dto.FirstName,
-                Mbiemri = dto.LastName,
-                Email = dto.Email,
-                DataRegjistrimit = DateTime.UtcNow
-            };
-            _db.Klientet.Add(klient);
-            await _db.SaveChangesAsync();
-            user.KlientId = klient.KlientId.ToString();
-            await _userManager.UpdateAsync(user);
-        }
+            return BadRequest(result.Errors);
 
         var ip = HttpContext.Connection.RemoteIpAddress?.ToString();
-        var access = await _tokenService.GenerateAccessTokenAsync(user);
-        var refresh = await _tokenService.GenerateRefreshTokenAsync(user, ip);
-        return Ok(_tokenService.BuildAuthResponse(user, access, refresh, role));
+        var accessToken = _tokenService.GenerateAccessToken(user);
+        var refreshToken = await _tokenService.GenerateRefreshTokenAsync(user, ip);
+        return Ok(_tokenService.BuildAuthResponse(user, accessToken, refreshToken));
     }
 
-    /// <summary>
-    /// Kyç një përdorues ekzistues dhe gjeneron token-at JWT.
-    /// </summary>
-    /// <param name="dto">Kredencialet (Email dhe Password).</param>
-    /// <returns>Token-at e autentifikimit (Access & Refresh).</returns>
     [HttpPost("login")]
-    public async Task<ActionResult<AuthResponseDto>> Login([FromBody] LoginDto dto)
+    public async Task<IActionResult> Login([FromBody] LoginDto dto)
     {
+        var ip = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        if (_loginAttempts.TryGetValue(ip, out var attempt))
+        {
+            if (attempt.Count >= 5 && DateTime.UtcNow - attempt.LastAttempt < TimeSpan.FromMinutes(15))
+                return StatusCode(429, new { message = "Shumë tentativa. Provoni pas 15 minutash." });
+        }
+
         var user = await _userManager.FindByEmailAsync(dto.Email);
-        if (user is null || !await _userManager.CheckPasswordAsync(user, dto.Password))
-            return Unauthorized(new { message = "Email ose fjalëkalim i gabuar." });
+        if (user == null || !user.IsActive)
+        {
+            _loginAttempts[ip] = _loginAttempts.TryGetValue(ip, out var a) ? (a.Count + 1, DateTime.UtcNow) : (1, DateTime.UtcNow);
+            return Unauthorized("Kredencialet jane te gabuara.");
+        }
 
-        var roles = await _userManager.GetRolesAsync(user);
-        var role = roles.FirstOrDefault() ?? "Klient";
-        var ip = HttpContext.Connection.RemoteIpAddress?.ToString();
-        var access = await _tokenService.GenerateAccessTokenAsync(user);
-        var refresh = await _tokenService.GenerateRefreshTokenAsync(user, ip);
-        return Ok(_tokenService.BuildAuthResponse(user, access, refresh, role));
+        var result = await _signInManager.CheckPasswordSignInAsync(user, dto.Password, false);
+        if (!result.Succeeded)
+        {
+            _loginAttempts[ip] = _loginAttempts.TryGetValue(ip, out var a) ? (a.Count + 1, DateTime.UtcNow) : (1, DateTime.UtcNow);
+            return Unauthorized("Kredencialet jane te gabuara.");
+        }
+
+        _loginAttempts.Remove(ip);
+        var accessToken = _tokenService.GenerateAccessToken(user);
+        var refreshToken = await _tokenService.GenerateRefreshTokenAsync(user, ip);
+        return Ok(_tokenService.BuildAuthResponse(user, accessToken, refreshToken));
     }
 
-    /// <summary>
-    /// Rifreskon Access Token duke përdorur një Refresh Token valid.
-    /// </summary>
-    /// <param name="dto">Refresh token aktual.</param>
-    /// <returns>Një Access Token i ri dhe Refresh Token i rrotulluar.</returns>
     [HttpPost("refresh")]
-    public async Task<ActionResult<AuthResponseDto>> Refresh(
-        [FromBody] RefreshTokenRequestDto dto)
+    public async Task<IActionResult> Refresh([FromBody] RefreshTokenRequestDto dto)
     {
-        try
-        {
-            var ip = HttpContext.Connection.RemoteIpAddress?.ToString();
-            var (access, refresh) =
-                await _tokenService.RotateRefreshTokenAsync(dto.RefreshToken, ip);
-            var user = await _userManager.FindByIdAsync(refresh.UserId);
-            if (user is null) return Unauthorized();
-            var roles = await _userManager.GetRolesAsync(user);
-            var role = roles.FirstOrDefault() ?? "Klient";
-            return Ok(_tokenService.BuildAuthResponse(user, access, refresh, role));
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            return Unauthorized(new { message = ex.Message });
-        }
-    }
+        var ip = HttpContext.Connection.RemoteIpAddress?.ToString();
+        var result = await _tokenService.RotateRefreshTokenAsync(dto.RefreshToken, ip);
+        if (result == null)
+            return Unauthorized("Token i pavlefshëm ose i skaduar.");
 
-    [HttpPost("logout")]
-    public async Task<IActionResult> Logout([FromBody] RefreshTokenRequestDto dto)
-    {
-        using var scope = HttpContext.RequestServices.CreateScope();
-        var db = scope.ServiceProvider
-            .GetRequiredService<Data.ApplicationDbContext>();
-        var token = db.RefreshTokens
-            .FirstOrDefault(r => r.Token == dto.RefreshToken);
-        if (token?.IsActive == true)
-        {
-            token.RevokedAt = DateTime.UtcNow;
-            await db.SaveChangesAsync();
-        }
-        return Ok(new { message = "Çkyçja u krye." });
+        return Ok(new { accessToken = result.Value.AccessToken, refreshToken = result.Value.NewRefreshToken.Token });
     }
 
     [HttpPut("change-password")]
@@ -143,12 +99,22 @@ public class AuthController : ControllerBase
         var user = await _userManager.FindByIdAsync(userId!);
         if (user is null) return Unauthorized();
 
-        var result = await _userManager.ChangePasswordAsync(
-            user, dto.CurrentPassword, dto.NewPassword);
+        var result = await _userManager.ChangePasswordAsync(user, dto.CurrentPassword, dto.NewPassword);
         if (!result.Succeeded)
             return BadRequest(new { errors = result.Errors.Select(e => e.Description) });
 
         await _tokenService.RevokeAllTokensAsync(user.Id);
-        return Ok(new { message = "Fjalëkalimi u ndryshua." });
+        return Ok(new { message = "Fjalëkalimi u ndryshua me sukses." });
+    }
+
+    [HttpPost("logout")]
+    public async Task<IActionResult> Logout([FromBody] RefreshTokenRequestDto dto)
+    {
+        var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+                  ?? User.FindFirst("sub")?.Value;
+        if (userId != null)
+            await _tokenService.RevokeAllTokensAsync(userId);
+
+        return Ok(new { message = "Dilur me sukses." });
     }
 }

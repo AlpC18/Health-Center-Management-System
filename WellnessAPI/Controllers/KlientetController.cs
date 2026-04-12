@@ -1,12 +1,11 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using WellnessAPI.Data;
 using WellnessAPI.DTOs;
+using WellnessAPI.Helpers;
 using WellnessAPI.Models.Domain;
 using WellnessAPI.Services;
-using WellnessAPI.Hubs;
 
 namespace WellnessAPI.Controllers;
 
@@ -17,134 +16,117 @@ public class KlientetController : ControllerBase
 {
     private readonly ApplicationDbContext _db;
     private readonly AuditService _audit;
-    private readonly IHubContext<NotificationHub> _hub;
-    private readonly FileUploadService _fileService;
-    private readonly EmailService _email;
 
-    public KlientetController(ApplicationDbContext db, AuditService audit, IHubContext<NotificationHub> hub, FileUploadService fileService, EmailService email)
+    public KlientetController(ApplicationDbContext db, AuditService audit)
     {
         _db = db;
         _audit = audit;
-        _hub = hub;
-        _fileService = fileService;
-        _email = email;
     }
 
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<KlientResponseDto>>> GetAll(
-        [FromQuery] string? search,
-        [FromQuery] int page = 1,
-        [FromQuery] int limit = 10)
+    public async Task<IActionResult> GetAll([FromQuery] PagedQuery query)
     {
         var q = _db.Klientet.AsNoTracking().AsQueryable();
-        if (!string.IsNullOrEmpty(search))
+
+        if (!string.IsNullOrWhiteSpace(query.Search))
         {
-            var s = search.ToLower();
+            var s = query.Search.ToLower();
             q = q.Where(k =>
                 k.Emri.ToLower().Contains(s) ||
                 k.Mbiemri.ToLower().Contains(s) ||
-                k.Email.ToLower().Contains(s));
+                k.Email.ToLower().Contains(s) ||
+                k.Telefoni.ToLower().Contains(s));
         }
+
+        q = query.SortBy?.ToLower() switch
+        {
+            "emri"             => query.SortDir == "desc" ? q.OrderByDescending(k => k.Emri)             : q.OrderBy(k => k.Emri),
+            "email"            => query.SortDir == "desc" ? q.OrderByDescending(k => k.Email)            : q.OrderBy(k => k.Email),
+            "dataregjistrimit" => query.SortDir == "desc" ? q.OrderByDescending(k => k.DataRegjistrimit) : q.OrderBy(k => k.DataRegjistrimit),
+            _                  => q.OrderBy(k => k.KlientId)
+        };
+
         var total = await q.CountAsync();
-        var data = await q
-            .OrderByDescending(k => k.DataRegjistrimit)
-            .Skip((page - 1) * limit).Take(limit)
-            .Select(k => ToDto(k)).ToListAsync();
-        return Ok(new { data, total, page, limit });
+        var data  = await q.Skip((query.Page - 1) * query.Limit).Take(query.Limit).ToListAsync();
+
+        return Ok(new PagedResult<KlientResponseDto>
+        {
+            Data  = data.Select(k => ToDto(k)).ToList(),
+            Page  = query.Page,
+            Limit = query.Limit,
+            Total = total
+        });
     }
 
-    [HttpGet("{id:int}")]
-    public async Task<ActionResult<KlientResponseDto>> GetById(int id)
+    [HttpGet("{id}")]
+    public async Task<IActionResult> GetById(int id)
     {
         var k = await _db.Klientet.FindAsync(id);
-        if (k is null) return NotFound(new { message = $"Klienti #{id} nuk u gjet." });
+        if (k == null) return NotFound();
         return Ok(ToDto(k));
     }
 
     [HttpPost]
-    [Authorize(Roles = "Admin")]
-    public async Task<ActionResult<KlientResponseDto>> Create([FromBody] KlientCreateDto dto)
+    public async Task<IActionResult> Create([FromBody] KlientCreateDto dto)
     {
         if (await _db.Klientet.AnyAsync(k => k.Email == dto.Email))
-            return Conflict(new { message = "Email tashmë ekziston." });
+            return Conflict("Ky email eshte i regjistruar.");
 
-        var k = new Klient
+        var klient = new Klient
         {
-            Emri = dto.Emri, Mbiemri = dto.Mbiemri, Email = dto.Email,
-            Telefoni = dto.Telefoni, DataLindjes = dto.DataLindjes,
-            Gjinia = dto.Gjinia, KushtetShendetesore = dto.KushtetShendetesore,
-            DataRegjistrimit = DateTime.UtcNow
+            Emri = dto.Emri,
+            Mbiemri = dto.Mbiemri,
+            Email = dto.Email,
+            Telefoni = dto.Telefoni,
+            DataLindjes = dto.DataLindjes,
+            Gjinia = dto.Gjinia,
+            KushtetShendetesore = dto.KushtetShendetesore
         };
-        _db.Klientet.Add(k);
+
+        _db.Klientet.Add(klient);
         await _db.SaveChangesAsync();
-        
-        await _audit.LogAsync("CREATE", "Klient", k.KlientId.ToString(), null, dto);
-        
-        // SignalR: Notify all connected clients about new client
-        await _hub.Clients.All.SendAsync("ReceiveNotification", $"Klienti i ri u shtua: {k.Emri} {k.Mbiemri}");
-
-        // Email: Send welcome email (async - don't wait for it if you want faster response, but better to await or fire & forget carefully)
-        try {
-            await _email.SendWelcomeEmailAsync(k.Email, k.Emri);
-        } catch {
-            // Log email failure but don't crash the request
-        }
-
-        return CreatedAtAction(nameof(GetById), new { id = k.KlientId }, ToDto(k));
+        await _audit.LogAsync("Klient", "CREATE", klient.KlientId.ToString(), newValues: dto);
+        return CreatedAtAction(nameof(GetById), new { id = klient.KlientId }, ToDto(klient));
     }
 
-    [HttpPut("{id:int}")]
-    [Authorize(Roles = "Admin")]
-    public async Task<ActionResult<KlientResponseDto>> Update(
-        int id, [FromBody] KlientUpdateDto dto)
+    [HttpPut("{id}")]
+    public async Task<IActionResult> Update(int id, [FromBody] KlientUpdateDto dto)
     {
-        var k = await _db.Klientet.FindAsync(id);
-        if (k is null) return NotFound();
-        if (await _db.Klientet.AnyAsync(x => x.Email == dto.Email && x.KlientId != id))
-            return Conflict(new { message = "Email tashmë përdoret." });
+        var klient = await _db.Klientet.FindAsync(id);
+        if (klient == null) return NotFound();
 
-        var old = ToDto(k);
-        k.Emri = dto.Emri; k.Mbiemri = dto.Mbiemri; k.Email = dto.Email;
-        k.Telefoni = dto.Telefoni; k.DataLindjes = dto.DataLindjes;
-        k.Gjinia = dto.Gjinia; k.KushtetShendetesore = dto.KushtetShendetesore;
+        if (await _db.Klientet.AnyAsync(k => k.Email == dto.Email && k.KlientId != id))
+            return Conflict("Ky email eshte i regjistruar.");
+
+        var old = ToDto(klient);
+
+        klient.Emri = dto.Emri;
+        klient.Mbiemri = dto.Mbiemri;
+        klient.Email = dto.Email;
+        klient.Telefoni = dto.Telefoni;
+        klient.DataLindjes = dto.DataLindjes;
+        klient.Gjinia = dto.Gjinia;
+        klient.KushtetShendetesore = dto.KushtetShendetesore;
+
         await _db.SaveChangesAsync();
-        await _audit.LogAsync("UPDATE", "Klient", id.ToString(), old, dto);
-        return Ok(ToDto(k));
+        await _audit.LogAsync("Klient", "UPDATE", id.ToString(), oldValues: old, newValues: dto);
+        return Ok(ToDto(klient));
     }
 
-    [HttpDelete("{id:int}")]
-    [Authorize(Roles = "Admin")]
+    [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(int id)
     {
-        var k = await _db.Klientet.FindAsync(id);
-        if (k is null) return NotFound();
-        var old = ToDto(k);
-        _fileService.DeleteFile(k.FotoPath);
-        _db.Klientet.Remove(k);
+        var klient = await _db.Klientet.FindAsync(id);
+        if (klient == null) return NotFound();
+        var old = ToDto(klient);
+        _db.Klientet.Remove(klient);
         await _db.SaveChangesAsync();
-        await _audit.LogAsync("DELETE", "Klient", id.ToString(), old, null);
+        await _audit.LogAsync("Klient", "DELETE", id.ToString(), oldValues: old);
         return NoContent();
     }
 
-    [HttpPost("{id:int}/foto")]
-    [Authorize(Roles = "Admin")]
-    public async Task<ActionResult<KlientResponseDto>> UploadFoto(int id, IFormFile file)
-    {
-        var k = await _db.Klientet.FindAsync(id);
-        if (k is null) return NotFound();
-
-        var path = await _fileService.UploadFileAsync(file, "klientet");
-        if (path != null)
-        {
-            _fileService.DeleteFile(k.FotoPath);
-            k.FotoPath = path;
-            await _db.SaveChangesAsync();
-            await _audit.LogAsync("UPDATE_FOTO", "Klient", id.ToString(), null, new { path });
-        }
-        return Ok(ToDto(k));
-    }
-
-    private static KlientResponseDto ToDto(Klient k) => new(
-        k.KlientId, k.Emri, k.Mbiemri, k.Email, k.Telefoni,
-        k.DataLindjes, k.Gjinia, k.KushtetShendetesore, k.FotoPath, k.DataRegjistrimit);
+    private static KlientResponseDto ToDto(Klient k) =>
+        new(k.KlientId, k.Emri, k.Mbiemri, k.Email,
+            k.Telefoni, k.DataLindjes, k.Gjinia,
+            k.KushtetShendetesore, k.DataRegjistrimit);
 }

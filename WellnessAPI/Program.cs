@@ -1,41 +1,45 @@
 using System.Text;
+using AspNetCoreRateLimit;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using AspNetCoreRateLimit;
-using FluentValidation;
-using FluentValidation.AspNetCore;
+using Microsoft.OpenApi.Models;
 using WellnessAPI.Data;
 using WellnessAPI.Models.Identity;
 using WellnessAPI.Services;
-using WellnessAPI.Middleware;
-using WellnessAPI.Hubs;
-using WellnessAPI.Validators;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. DB
-builder.Services.AddDbContext<ApplicationDbContext>(o =>
-    o.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
+// Database
+builder.Services.AddDbContext<ApplicationDbContext>(options =>
+    options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// 2. Identity
-builder.Services.AddIdentity<ApplicationUser, IdentityRole>(o => {
-    o.Password.RequireDigit = true;
-    o.Password.RequiredLength = 8;
-    o.User.RequireUniqueEmail = true;
+// Identity
+builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
+{
+    options.Password.RequireDigit = true;
+    options.Password.RequireLowercase = true;
+    options.Password.RequireUppercase = true;
+    options.Password.RequireNonAlphanumeric = true;
+    options.Password.RequiredLength = 8;
 })
 .AddEntityFrameworkStores<ApplicationDbContext>()
 .AddDefaultTokenProviders();
 
-// 3. JWT
+// SignalR
+builder.Services.AddSignalR();
+
+// JWT Authentication
 var jwtKey = builder.Configuration["Jwt:Key"]!;
-builder.Services.AddAuthentication(o => {
-    o.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-    o.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
 })
-.AddJwtBearer(o => {
-    o.TokenValidationParameters = new TokenValidationParameters
+.AddJwtBearer(options =>
+{
+    options.TokenValidationParameters = new TokenValidationParameters
     {
         ValidateIssuer = true,
         ValidateAudience = true,
@@ -43,93 +47,90 @@ builder.Services.AddAuthentication(o => {
         ValidateIssuerSigningKey = true,
         ValidIssuer = builder.Configuration["Jwt:Issuer"],
         ValidAudience = builder.Configuration["Jwt:Audience"],
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
-        ClockSkew = TimeSpan.Zero
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
     };
 });
 
-// 4. Rate Limiting
-builder.Services.AddMemoryCache();
-builder.Services.Configure<IpRateLimitOptions>(builder.Configuration.GetSection("IpRateLimiting"));
-builder.Services.AddSingleton<IIpPolicyStore, MemoryCacheIpPolicyStore>();
-builder.Services.AddSingleton<IRateLimitCounterStore, MemoryCacheRateLimitCounterStore>();
-builder.Services.AddSingleton<IRateLimitConfiguration, RateLimitConfiguration>();
-builder.Services.AddSingleton<IProcessingStrategy, AsyncKeyLockProcessingStrategy>();
-builder.Services.AddInMemoryRateLimiting();
-
-// 5. Services & Validators
-builder.Services.AddHttpContextAccessor();
-builder.Services.AddScoped<TokenService>();
-builder.Services.AddScoped<AuditService>();
-builder.Services.AddScoped<FileUploadService>();
-builder.Services.AddScoped<EmailService>();
-builder.Services.AddHostedService<AppointmentReminderService>();
-builder.Services.AddSignalR();
-builder.Services.AddValidatorsFromAssemblyContaining<KlientValidators.Create>();
-builder.Services.AddFluentValidationAutoValidation();
-
-// 6. CORS
-builder.Services.AddCors(o => o.AddPolicy("ReactApp", p =>
-    p.WithOrigins("http://localhost:5173", "http://localhost:3000", "http://127.0.0.1:5173")
-     .AllowAnyHeader().AllowAnyMethod().AllowCredentials()));
-
-// 7. Swagger (JWT + XML Docs)
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(c =>
+// CORS
+builder.Services.AddCors(options =>
 {
-    c.SwaggerDoc("v1", new()
+    options.AddPolicy("ReactApp", policy =>
     {
-        Title = "Wellness House API",
-        Version = "v1",
-        Description = "RESTful API për sistemin e menaxhimit të Wellness House. Gjitha endpoints kërkojnë JWT Bearer token.",
-        Contact = new() { Name = "Wellness House Dev Team" }
-    });
-
-    // Enable XML comments
-    var xmlFile = $"{System.Reflection.Assembly.GetExecutingAssembly().GetName().Name}.xml";
-    var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
-    if (File.Exists(xmlPath)) c.IncludeXmlComments(xmlPath);
-
-    // JWT Bearer button in Swagger UI — Swashbuckle 10 / OpenAPI v2 pattern
-    c.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.OpenApiSecurityScheme
-    {
-        Type = Microsoft.OpenApi.SecuritySchemeType.Http,
-        Scheme = "bearer",
-        BearerFormat = "JWT",
-        Description = "Shkruani JWT tokenin tuaj."
-    });
-    c.AddSecurityRequirement(document => new Microsoft.OpenApi.OpenApiSecurityRequirement
-    {
-        [new Microsoft.OpenApi.OpenApiSecuritySchemeReference("Bearer", document)] = new List<string>()
+        policy.WithOrigins("http://localhost:5173", "http://localhost:3000")
+              .AllowAnyHeader()
+              .AllowAnyMethod();
     });
 });
 
+// Rate Limiting
+builder.Services.AddMemoryCache();
+builder.Services.Configure<IpRateLimitOptions>(builder.Configuration.GetSection("IpRateLimiting"));
+builder.Services.AddInMemoryRateLimiting();
+builder.Services.AddSingleton<IRateLimitConfiguration, RateLimitConfiguration>();
+
+// Http Context + Services
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<TokenService>();
+builder.Services.AddScoped<AuditService>();
+
+// Controllers + Swagger
 builder.Services.AddControllers();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(c =>
+{
+    c.SwaggerDoc("v1", new OpenApiInfo { Title = "WellnessAPI", Version = "v1" });
+
+    var securityScheme = new OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        Description = "Enter: Bearer {token}",
+        In = ParameterLocation.Header,
+        Type = SecuritySchemeType.ApiKey,
+        Scheme = "Bearer",
+        BearerFormat = "JWT",
+        Reference = new OpenApiReference
+        {
+            Type = ReferenceType.SecurityScheme,
+            Id = "Bearer"
+        }
+    };
+
+    c.AddSecurityDefinition("Bearer", securityScheme);
+    c.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        { securityScheme, Array.Empty<string>() }
+    });
+});
 
 var app = builder.Build();
 
-// Migrate + Seed
-using (var scope = app.Services.CreateScope())
+// Auto-migrate in development
+if (app.Environment.IsDevelopment())
 {
-    var sp = scope.ServiceProvider;
-    var db = sp.GetRequiredService<ApplicationDbContext>();
-    var um = sp.GetRequiredService<UserManager<ApplicationUser>>();
-    var rm = sp.GetRequiredService<RoleManager<IdentityRole>>();
-    
-    db.Database.Migrate();
-    SeedData.SeedAsync(db, um, rm).Wait();
+    using var scope = app.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    // db.Database.Migrate();
+
+    app.UseSwagger();
+    app.UseSwaggerUI();
 }
 
-app.UseMiddleware<ErrorHandlingMiddleware>();
 app.UseIpRateLimiting();
-app.UseStaticFiles();
-app.UseSwagger();
-app.UseSwaggerUI();
+
+app.Use(async (context, next) =>
+{
+    context.Response.Headers.Append("X-Content-Type-Options", "nosniff");
+    context.Response.Headers.Append("X-Frame-Options", "DENY");
+    context.Response.Headers.Append("X-XSS-Protection", "1; mode=block");
+    context.Response.Headers.Append("Referrer-Policy", "strict-origin-when-cross-origin");
+    await next();
+});
+
 app.UseCors("ReactApp");
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
-app.MapHub<NotificationHub>("/notificationHub");
+app.MapHub<WellnessAPI.Hubs.WellnessHub>("/wellnessHub");
 
 app.Run();

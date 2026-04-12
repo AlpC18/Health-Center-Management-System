@@ -8,9 +8,11 @@ public class RefreshToken
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? RevokedAt { get; set; }
     public string? CreatedByIp { get; set; }
+
     public string UserId { get; set; } = string.Empty;
     public ApplicationUser User { get; set; } = null!;
+
     public bool IsExpired => DateTime.UtcNow >= ExpiresAt;
-    public bool IsRevoked => RevokedAt.HasValue;
+    public bool IsRevoked => RevokedAt != null;
     public bool IsActive => !IsRevoked && !IsExpired;
 }
