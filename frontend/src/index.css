@@ -1,0 +1,146 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --health-bg: #FFFFFF;
+    --health-surface: #F8FAFC;
+    --health-hover: #F1F5F9;
+    --health-brand: #E50914;
+    --health-primary: #0F172A;
+    --health-secondary: #64748B;
+    --health-border: #E2E8F0;
+    --health-accent: #3B82F6;
+  }
+
+  .dark {
+    --health-bg: #0B0E14;
+    --health-surface: #161B22;
+    --health-hover: #1C2128;
+    --health-brand: #E50914;
+    --health-primary: #F0F6FC;
+    --health-secondary: #8B949E;
+    --health-border: #30363D;
+    --health-accent: #58A6FF;
+  }
+
+  body { 
+    @apply bg-health-bg text-health-primary transition-colors duration-300;
+    font-family: 'DM Sans', sans-serif; 
+  }
+}
+
+@layer components {
+  /* Navigation & Menu */
+  .nav-item-active {
+    @apply text-health-brand font-semibold border-l-2 border-health-brand pl-4;
+  }
+
+  .btn-primary { 
+    @apply inline-flex items-center gap-2 px-6 py-2.5 bg-health-brand text-white text-sm font-semibold rounded-lg hover:brightness-110 active:scale-[0.98] transition-all duration-200 disabled:opacity-50; 
+  }
+
+  .btn-secondary { 
+    @apply inline-flex items-center gap-2 px-6 py-2.5 bg-health-surface text-health-primary text-sm font-medium rounded-lg border border-health-border hover:bg-health-hover active:scale-[0.98] transition-all duration-200; 
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center gap-2 px-4 py-2 text-health-secondary hover:text-health-primary hover:bg-health-hover rounded-lg transition-all;
+  }
+
+  .input { 
+    @apply w-full px-4 py-3 text-sm border border-health-border rounded-lg bg-health-bg text-health-primary focus:outline-none focus:ring-1 focus:ring-health-accent focus:border-health-accent transition-all duration-200; 
+  }
+
+  .input::placeholder {
+    color: var(--health-secondary);
+    opacity: 0.5;
+  }
+
+  .label { 
+    @apply block text-[11px] font-bold text-health-secondary uppercase tracking-wider mb-2; 
+  }
+
+  .card { 
+    @apply bg-health-surface rounded-xl border border-health-border shadow-2xl transition-all duration-200; 
+  }
+
+  .card-interactive {
+    @apply card hover:bg-health-hover cursor-pointer;
+  }
+
+  .table-th { 
+    @apply text-left text-[11px] font-bold text-health-secondary uppercase tracking-widest px-6 py-4 border-b border-health-border; 
+  }
+
+  .table-td { 
+    @apply px-6 py-4 text-sm text-health-primary border-b border-health-border; 
+  }
+
+  .badge-accent { 
+    @apply inline-flex px-3 py-1 text-[10px] font-bold uppercase tracking-wider bg-blue-500/10 text-health-accent rounded-full border border-blue-500/20; 
+  }
+
+  .badge-brand {
+    @apply inline-flex px-3 py-1 text-[10px] font-bold uppercase tracking-wider bg-red-500/10 text-health-brand rounded-full border border-red-500/20;
+  }
+
+  /* FullCalendar Dark Mode Refinement */
+  .fc { @apply text-sm text-health-primary; }
+  .fc-theme-standard td, .fc-theme-standard th { @apply border-health-border; }
+  .fc-col-header-cell { @apply bg-health-bg py-4 font-bold uppercase text-[10px] tracking-widest text-health-secondary; }
+  .fc-daygrid-day:hover { @apply bg-health-hover transition-colors; }
+  .fc-list-day-cushion { @apply bg-health-surface; }
+  .fc-button-primary { @apply bg-health-surface border-health-border text-health-primary hover:bg-health-hover active:bg-health-brand border-none shadow-none font-bold text-xs uppercase tracking-wider !important; }
+  .fc-button-active { @apply bg-health-brand !important; }
+  .fc-toolbar-title { @apply text-lg font-bold tracking-tight text-health-primary; }
+
+  /* Scrollbar Customization */
+  ::-webkit-scrollbar { width: 8px; }
+  ::-webkit-scrollbar-track { @apply bg-health-bg; }
+  ::-webkit-scrollbar-thumb { @apply bg-health-border rounded-full hover:bg-health-secondary; }
+}
+
+@media print {
+  /* Hide navigation, sidebar, and interactive controls */
+  nav,
+  aside,
+  header,
+  .print\:hidden,
+  [data-sidebar],
+  #sidebar {
+    display: none !important;
+  }
+
+  /* Make main content fill the full page */
+  main,
+  .main-content {
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Remove shadows and borders for cleaner print */
+  .card {
+    box-shadow: none !important;
+    border: 1px solid #e5e7eb !important;
+  }
+
+  /* Ensure text is black on white for readability */
+  body {
+    background: white !important;
+    color: black !important;
+  }
+
+  /* Show page breaks naturally */
+  table {
+    page-break-inside: auto;
+  }
+
+  tr {
+    page-break-inside: avoid;
+  }
+}
