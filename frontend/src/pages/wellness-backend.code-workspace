@@ -1,0 +1,16 @@
+{
+	"folders": [
+		{
+			"path": "../../../wellness-backend"
+		},
+		{
+			"path": "../../../WellnessAPI"
+		},
+		{
+			"path": "../.."
+		},
+		{
+			"path": "../../../wellness-app"
+		}
+	]
+}
