@@ -46,30 +46,69 @@ Health-Center-Management-System/
 ## 🛠️ Step-by-Step Guide: How to Start & Run
 
 ### Prerequisites
-- [Node.js (v18+)](https://nodejs.org/)
-- [.NET 8 SDK](https://dotnet.microsoft.com/)
-- Git
+Before you start, ensure you have the following installed on your machine:
+- **[Node.js (v18+)](https://nodejs.org/)**: Required to run the React frontend environment.
+- **[.NET 8 SDK](https://dotnet.microsoft.com/)**: Required to build and run the C# backend API.
+- **Git**: To clone the repository and manage version control.
+
+---
 
 ### 1. How to Start the Backend (API)
-The backend requires applying database migrations before the first run.
-**Terminal 1:**
+
+The backend uses **ASP.NET Core** and **Entity Framework Core**. It is responsible for serving data, authenticating users, and interacting with the SQLite database.
+
+Open your terminal and follow these steps **(Terminal 1)**:
+
+**Step 1: Navigate to the backend directory**
 ```bash
 cd backend/WellnessAPI
+```
+*This places you in the root API folder where the `WellnessAPI.csproj` project file is located.*
+
+**Step 2: Restore project dependencies**
+```bash
 dotnet restore
-dotnet ef database update  # Creates wellness.db and seeds test data
+```
+*What it does: This command downloads and installs all necessary NuGet packages (like Entity Framework, JWT Bearer, and FluentValidation) that the project needs to run locally.*
+
+**Step 3: Update the database and apply migrations**
+```bash
+dotnet ef database update
+```
+*What it does: This is a critical step. It executes Entity Framework Core migrations. It will automatically generate a new `wellness.db` SQLite database file on your machine and seed it with initial admin and client data so you can test the system immediately.*
+*(Note: If the `dotnet ef` command is missing, install the tool globally by running `dotnet tool install --global dotnet-ef`)*
+
+**Step 4: Run the API application**
+```bash
 dotnet run
 ```
-*The backend will run on `http://localhost:5077`.*
+*What it does: This compiles the code and starts the built-in Kestrel web server. You will see console logs confirming the application is listening for requests. The backend will actively run on `http://localhost:5077`.*
+
+---
 
 ### 2. How to Start the Frontend
-The frontend requires installing NPM packages before the first run.
-**Terminal 2:**
+
+The frontend is a **React** application bundled by **Vite**. It is responsible for the user interface, routing, and communicating with the Backend API.
+
+Open a **new terminal tab** (do not close the backend terminal) and follow these steps **(Terminal 2)**:
+
+**Step 1: Navigate to the frontend directory**
 ```bash
 cd frontend
+```
+*This places you in the directory where the `package.json` file is located.*
+
+**Step 2: Install Node modules**
+```bash
 npm install
+```
+*What it does: This command reads the `package.json` file and downloads all required frontend dependencies (like React, TailwindCSS, Zustand, Axios, React-Router) into a new `node_modules` folder. You only need to run this once.*
+
+**Step 3: Start the local development server**
+```bash
 npm run dev
 ```
-*The frontend will run on `http://localhost:5173`.*
+*What it does: This starts the Vite development server with Hot Module Replacement (HMR). Any changes you make to the UI code will instantly update in the browser. The frontend will be accessible at `http://localhost:5173`.*
 
 > **Quick Start Script (macOS/Linux):**
 > You can also run both simultaneously using the `START.sh` file located in the root!
