@@ -19,6 +19,7 @@ export default function CrudPage({
   idKey = 'id',
   extraFormProps = {},
   onSaved,
+  filterFn,
 }) {
   const { lang } = useLangStore()
   const [items, setItems] = useState([])
@@ -136,6 +137,9 @@ export default function CrudPage({
     `#${item[idKey]}`
 
   const totalPages = Math.ceil(total / LIMIT) || 1
+  const visibleItems = typeof filterFn === 'function' ? items.filter(filterFn) : items
+  const shownFrom = visibleItems.length > 0 ? (page - 1) * LIMIT + 1 : 0
+  const shownTo = visibleItems.length > 0 ? (page - 1) * LIMIT + visibleItems.length : 0
 
   // Sortable column header (closure over sortBy/sortDir state)
   const SortHeader = ({ col }) => (
@@ -177,9 +181,9 @@ export default function CrudPage({
   )
 
   const handleExportCSV = () => {
-    if (items.length === 0) return toast.error(lang === 'sq' ? "S'ka të dhëna për eksport" : "No records to export");
+    if (visibleItems.length === 0) return toast.error(lang === 'sq' ? "S'ka të dhëna për eksport" : "No records to export");
     const headers = columns.map(c => c.label).join(',') + '\n';
-    const rows = items.map(item => columns.map(c => {
+    const rows = visibleItems.map(item => columns.map(c => {
       let val = item[c.key];
       if (typeof val === 'object') val = JSON.stringify(val);
       const strVal = String(val ?? '').replace(/"/g, '""');
@@ -232,7 +236,7 @@ export default function CrudPage({
 
       {/* Table */}
       <div className="card overflow-hidden">
-        {items.length === 0 ? (
+        {visibleItems.length === 0 ? (
           <EmptyState
             icon={emptyIcon}
             title={t(lang, 'noRecords')}
@@ -259,7 +263,7 @@ export default function CrudPage({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-health-border/50">
-                  {items.map((item) => (
+                  {visibleItems.map((item) => (
                     <tr key={item[idKey]} className="hover:bg-health-hover/50 transition-colors">
                       {columns.map((col) => (
                         <td key={col.key} className="table-td">
@@ -293,7 +297,7 @@ export default function CrudPage({
             {/* Pagination */}
             <div className="flex items-center justify-between px-6 py-4 border-t border-health-border bg-health-surface/50">
               <p className="text-xs font-bold text-health-secondary uppercase tracking-widest">
-                {(page - 1) * LIMIT + 1}–{Math.min(page * LIMIT, total)} / {total} {lang === 'sq' ? 'rekorde' : 'records'}
+                {shownFrom}–{shownTo} / {total} {lang === 'sq' ? 'rekorde' : 'records'}
               </p>
               <div className="flex items-center gap-3">
                 <button

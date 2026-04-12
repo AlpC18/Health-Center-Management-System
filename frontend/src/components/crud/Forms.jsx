@@ -2,6 +2,12 @@ import { useState, useEffect } from 'react'
 import { Field, Spinner } from '../ui/index'
 
 const emptyStr = (v) => (v === undefined || v === null ? '' : v)
+const toDateInputValue = (value) => {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  return date.toISOString().slice(0, 10)
+}
 
 function FormActions({ loading, onCancel }) {
   return (
@@ -19,6 +25,11 @@ function FormActions({ loading, onCancel }) {
 
 // KlientForm
 export function KlientForm({ initial, onSave, loading, onCancel }) {
+  const safeInitial = {
+    ...initial,
+    dataLindjes: toDateInputValue(initial?.dataLindjes),
+  }
+
   const [f, setF] = useState({
     emri: '',
     mbiemri: '',
@@ -27,14 +38,24 @@ export function KlientForm({ initial, onSave, loading, onCancel }) {
     dataLindjes: '',
     gjinia: '',
     kushtetShendetesore: '',
-    ...initial,
+    ...safeInitial,
   })
 
   const set = (k) => (e) => setF((p) => ({ ...p, [k]: e.target.value }))
 
   const submit = (e) => {
     e.preventDefault()
-    onSave(f)
+    const payload = {
+      emri: f.emri?.trim(),
+      mbiemri: f.mbiemri?.trim(),
+      email: f.email?.trim(),
+      telefoni: f.telefoni?.trim() || null,
+      dataLindjes: f.dataLindjes || null,
+      gjinia: f.gjinia || null,
+      kushtetShendetesore: f.kushtetShendetesore?.trim() || null,
+      _newFoto: f._newFoto,
+    }
+    onSave(payload)
   }
 
   return (

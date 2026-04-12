@@ -11,6 +11,13 @@ export function KlientetPage() {
     window.open('http://localhost:5077/api/reports/klientet-pdf', '_blank')
   }
 
+  const handleKlientSaved = async (savedItem, formData) => {
+    if (!formData?._newFoto) return
+    const id = savedItem?.klientId
+    if (!id) return
+    await klientetApi.uploadFoto(id, formData._newFoto)
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-health-surface p-6 rounded-xl border border-health-border shadow-xl">
@@ -54,6 +61,7 @@ export function KlientetPage() {
         idKey="klientId"
         searchKeys={['emri', 'mbiemri', 'email']}
         filterFn={(item) => !gjiniaFilter || item.gjinia === gjiniaFilter}
+        onSaved={handleKlientSaved}
         columns={[
           {
             key: 'emri',
