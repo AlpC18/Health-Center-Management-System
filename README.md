@@ -6,6 +6,8 @@ A comprehensive, state-of-the-art Health and Wellness Center Management System. 
 
 It is built with a robust **ASP.NET Core Web API (C#)** backend and a dynamic **React (Vite) + TailwindCSS** frontend.
 
+> 🤝 **Add Collaborators:** To add collaborators or generate an invite link for this project, navigate to: [Settings > Collaborators](https://github.com/AlpC18/Health-Center-Management-System/settings/access) and click "Add people".
+
 ## 🚀 Features
 
 ### Backend (ASP.NET Core 8 Web API)
