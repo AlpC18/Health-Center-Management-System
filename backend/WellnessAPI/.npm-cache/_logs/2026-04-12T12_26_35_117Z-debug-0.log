@@ -1,0 +1,22 @@
+0 verbose cli /Volumes/PortableSSD/SystemBackup/opt/homebrew/Cellar/node/25.4.0/bin/node /Volumes/PortableSSD/SystemBackup/opt/homebrew/lib/node_modules/npm/bin/npm-cli.js
+1 info using npm@11.7.0
+2 info using node@v25.4.0
+3 silly config load:file:/Volumes/PortableSSD/SystemBackup/opt/homebrew/lib/node_modules/npm/npmrc
+4 silly config load:file:/Users/alpci/.npmrc
+5 silly config load:file:/opt/homebrew/etc/npmrc
+6 verbose title npm exec block-no-verify@1.1.2
+7 verbose argv "exec" "--" "block-no-verify@1.1.2"
+8 verbose logfile logs-max:10 dir:/Users/alpci/Desktop/wellness-backend/WellnessAPI/.npm-cache/_logs/2026-04-12T12_26_35_117Z-
+9 verbose logfile /Users/alpci/Desktop/wellness-backend/WellnessAPI/.npm-cache/_logs/2026-04-12T12_26_35_117Z-debug-0.log
+10 silly logfile start cleaning logs, removing 1 files
+11 silly logfile done cleaning log files
+12 silly packumentCache heap:2348810240 maxSize:587202560 maxEntrySize:293601280
+13 http fetch GET 200 https://registry.npmjs.org/block-no-verify 9293ms (cache revalidated)
+14 silly packumentCache heap:2348810240 maxSize:587202560 maxEntrySize:293601280
+15 silly packumentCache heap:2348810240 maxSize:587202560 maxEntrySize:293601280
+16 verbose cwd /Users/alpci/Desktop/wellness-backend/WellnessAPI
+17 verbose os Darwin 25.3.0
+18 verbose node v25.4.0
+19 verbose npm  v11.7.0
+20 verbose exit 0
+21 info ok
