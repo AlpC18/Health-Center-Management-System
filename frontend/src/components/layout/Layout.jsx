@@ -33,6 +33,7 @@ import useOnlineStatus from '../../hooks/useOnlineStatus'
 import useKeyboardShortcuts from '../../hooks/useKeyboardShortcuts'
 import OfflineBanner from '../ui/OfflineBanner'
 import KeyboardShortcutsModal from '../ui/KeyboardShortcutsModal'
+import ChatWidget from '../ui/ChatWidget'
 
 const adminNavItems = [
   { to: '/dashboard', labelKey: 'dashboard', icon: LayoutDashboard },
@@ -287,6 +288,7 @@ export default function Layout() {
       </div>
 
       <KeyboardShortcutsModal open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
+      <ChatWidget />
     </div>
   )
 }

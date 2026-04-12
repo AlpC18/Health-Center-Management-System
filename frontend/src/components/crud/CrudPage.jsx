@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import toast from 'react-hot-toast'
-import { Plus, Search, Pencil, Trash2, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
+import { Plus, Search, Pencil, Trash2, ChevronUp, ChevronDown, ChevronsUpDown, Download } from 'lucide-react'
 import { Spinner, Modal, EmptyState, notify } from '../ui/index'
 import TableSkeleton from '../ui/TableSkeleton'
 import useLangStore from '../../store/langStore'
@@ -176,6 +176,26 @@ export default function CrudPage({
     </div>
   )
 
+  const handleExportCSV = () => {
+    if (items.length === 0) return toast.error(lang === 'sq' ? "S'ka të dhëna për eksport" : "No records to export");
+    const headers = columns.map(c => c.label).join(',') + '\n';
+    const rows = items.map(item => columns.map(c => {
+      let val = item[c.key];
+      if (typeof val === 'object') val = JSON.stringify(val);
+      const strVal = String(val ?? '').replace(/"/g, '""');
+      return `"${strVal}"`;
+    }).join(',')).join('\n');
+    
+    const blob = new Blob([headers + rows], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${title.replace(/\s+/g, '_')}_Export.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success(lang === 'sq' ? 'Eksporti përfundoi me sukses!' : 'Exported successfully!');
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -184,10 +204,16 @@ export default function CrudPage({
           <h1 className="text-2xl font-bold text-health-primary tracking-tight">{title}</h1>
           {subtitle && <p className="text-sm text-health-secondary mt-1">{subtitle}</p>}
         </div>
-        <button className="btn-primary flex-shrink-0 px-6 py-2.5 shadow-lg shadow-health-brand/20" onClick={openCreate}>
-          <Plus className="h-4 w-4" />
-          {t(lang, 'add')}
-        </button>
+        <div className="flex items-center gap-3">
+          <button onClick={handleExportCSV} className="btn-secondary flex-shrink-0 px-4 py-2 bg-health-surface border border-health-border rounded-lg text-sm font-semibold hover:bg-health-hover">
+            <Download className="h-4 w-4" />
+            {lang === 'sq' ? 'Eksporto' : 'Export'}
+          </button>
+          <button className="btn-primary flex-shrink-0 px-6 py-2.5 shadow-lg shadow-health-brand/20" onClick={openCreate}>
+            <Plus className="h-4 w-4" />
+            {t(lang, 'add')}
+          </button>
+        </div>
       </div>
 
       {/* Search */}

@@ -4,9 +4,13 @@ namespace WellnessAPI.Hubs;
 
 public class NotificationHub : Hub
 {
-    // Bildirimleri tüm bağlı kullanıcılara gönderir
     public async Task SendNotification(string message)
     {
         await Clients.All.SendAsync("ReceiveNotification", message);
+    }
+
+    public async Task SendMessage(string user, string message)
+    {
+        await Clients.All.SendAsync("ReceiveMessage", user, message);
     }
 }

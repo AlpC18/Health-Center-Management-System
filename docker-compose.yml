@@ -1,0 +1,21 @@
+version: '3.8'
+services:
+  backend:
+    build: 
+      context: ./WellnessAPI
+      dockerfile: Dockerfile
+    ports:
+      - "5077:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+    volumes:
+      - ./WellnessAPI/wellness.db:/app/wellness.db
+
+  frontend:
+    build:
+      context: ../wellness-frontend
+      dockerfile: Dockerfile
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend

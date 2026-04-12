@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import useAuthStore from '../../store/authStore'
 import { authApi } from '../../api/api'
+import ChatWidget from '../ui/ChatWidget'
 
 const NAV = [
   { label: 'Ballina', path: '/portal/dashboard', icon: LayoutDashboard },
@@ -114,6 +115,8 @@ export default function PortalLayout({ children }) {
         </header>
         <main className="flex-1 p-6 overflow-auto max-w-5xl mx-auto w-full">{children}</main>
       </div>
+
+      <ChatWidget />
     </div>
   )
 }

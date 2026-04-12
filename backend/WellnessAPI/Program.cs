@@ -63,6 +63,7 @@ builder.Services.AddScoped<TokenService>();
 builder.Services.AddScoped<AuditService>();
 builder.Services.AddScoped<FileUploadService>();
 builder.Services.AddScoped<EmailService>();
+builder.Services.AddHostedService<AppointmentReminderService>();
 builder.Services.AddSignalR();
 builder.Services.AddValidatorsFromAssemblyContaining<KlientValidators.Create>();
 builder.Services.AddFluentValidationAutoValidation();
