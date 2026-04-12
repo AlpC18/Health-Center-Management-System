@@ -16,8 +16,26 @@ using WellnessAPI.Validators;
 var builder = WebApplication.CreateBuilder(args);
 
 // 1. DB
-builder.Services.AddDbContext<ApplicationDbContext>(o =>
-    o.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
+var dbProvider = (builder.Configuration["DatabaseProvider"] ?? "MySql").Trim();
+builder.Services.AddDbContext<ApplicationDbContext>(options =>
+{
+    if (dbProvider.Equals("MySql", StringComparison.OrdinalIgnoreCase))
+    {
+        var conn = builder.Configuration.GetConnectionString("MySqlConnection")
+            ?? throw new InvalidOperationException("Missing ConnectionStrings:MySqlConnection");
+        options.UseMySql(conn, new MySqlServerVersion(new Version(8, 0, 36)));
+    }
+    else if (dbProvider.Equals("Sqlite", StringComparison.OrdinalIgnoreCase))
+    {
+        var conn = builder.Configuration.GetConnectionString("DefaultConnection")
+            ?? throw new InvalidOperationException("Missing ConnectionStrings:DefaultConnection");
+        options.UseSqlite(conn);
+    }
+    else
+    {
+        throw new InvalidOperationException($"Unsupported DatabaseProvider '{dbProvider}'. Use 'MySql' or 'Sqlite'.");
+    }
+});
 
 // 2. Identity
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>(o => {
