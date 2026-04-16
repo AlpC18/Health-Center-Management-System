@@ -123,8 +123,12 @@ export function RegisterPage() {
       toast.error(t(lang, 'fillFields'))
       return
     }
-    if (form.password.length < 6) {
-      toast.error(t(lang, 'passwordMin'))
+    if (form.password.length < 8) {
+      toast.error('Fjalekalimi duhet te kete te pakten 8 karaktere.')
+      return
+    }
+    if (!/\d/.test(form.password)) {
+      toast.error('Fjalekalimi duhet te permbaje te pakten nje numer.')
       return
     }
     setLoading(true)
@@ -136,6 +140,12 @@ export function RegisterPage() {
       if (err.response?.data?.message === 'EXISTING_ACCOUNT') {
         toast.error(err.response.data.text || 'Kjo llogari ekziston.')
         navigate('/login')
+      } else if (Array.isArray(err.response?.data?.errors) && err.response.data.errors.length > 0) {
+        toast.error(err.response.data.errors[0])
+      } else if (typeof err.response?.data?.message === 'string') {
+        toast.error(err.response.data.message)
+      } else if (!err.response) {
+        toast.error('Backend API nuk po pergjigjet. Ndeze backend-in ne portin 5077.')
       } else {
         toast.error(t(lang, 'registerError'))
       }
