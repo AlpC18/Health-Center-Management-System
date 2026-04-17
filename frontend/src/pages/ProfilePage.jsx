@@ -7,6 +7,8 @@ import toast from 'react-hot-toast'
 
 export default function ProfilePage() {
   const { user } = useAuthStore()
+  const roles = Array.isArray(user?.roles) ? user.roles : []
+  const isAdmin = user?.role === 'Admin' || roles.includes('Admin') || roles.includes('Staff')
   const [pwForm, setPwForm] = useState({
     current: '',
     new: '',
@@ -123,7 +125,7 @@ export default function ProfilePage() {
       </div>
 
       {/* Database Backup (Admin Only) */}
-      {user?.roles?.includes('Admin') && (
+      {isAdmin && (
         <div className="card p-8 border-health-brand/30 bg-health-brand/5">
           <h3 className="text-lg font-bold text-health-brand mb-2 flex items-center gap-2 tracking-tight uppercase tracking-widest text-[12px]">
             Veri Yedekleme (Backup)

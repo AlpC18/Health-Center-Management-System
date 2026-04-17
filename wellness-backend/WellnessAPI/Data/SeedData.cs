@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using WellnessAPI.Models.Domain;
 using WellnessAPI.Models.Identity;
 
@@ -21,43 +22,23 @@ public static class SeedData
             }
         }
 
-        // 2. USERS
-        if (!userManager.Users.Any())
+        // 2. SYSTEM USERS (always ensure test logins exist)
+        await EnsureUserWithRoleAsync(userManager, "admin@wellness.com", "Admin123!", "Admin", "Wellness", "Admin");
+        await EnsureUserWithRoleAsync(userManager, "therapist@wellness.com", "Therapist123!", "Arta", "Krasniqi", "Therapist");
+
+        if (db.Klientet.Any())
         {
-            // Admin User
-            var admin = new ApplicationUser
-            {
-                UserName = "admin@wellness.com",
-                Email = "admin@wellness.com",
-                FirstName = "Admin",
-                LastName = "Wellness",
-                IsActive = true,
-                EmailConfirmed = true
-            };
-            var resultAdmin = await userManager.CreateAsync(admin, "Admin123!");
-            if (resultAdmin.Succeeded)
-            {
-                await userManager.AddToRoleAsync(admin, "Admin");
-            }
-
-            // Therapist User
-            var therapistUser = new ApplicationUser
-            {
-                UserName = "therapist@wellness.com",
-                Email = "therapist@wellness.com",
-                FirstName = "Arta",
-                LastName = "Krasniqi",
-                IsActive = true,
-                EmailConfirmed = true
-            };
-            var resultTherapist = await userManager.CreateAsync(therapistUser, "Therapist123!");
-            if (resultTherapist.Succeeded)
-            {
-                await userManager.AddToRoleAsync(therapistUser, "Therapist");
-            }
+            var klient = await db.Klientet.AsNoTracking().OrderBy(k => k.KlientId).FirstOrDefaultAsync();
+            await EnsureUserWithRoleAsync(
+                userManager,
+                "client@wellness.com",
+                "Client123!",
+                klient?.Emri ?? "Client",
+                klient?.Mbiemri ?? "Wellness",
+                "Klient",
+                klient?.KlientId.ToString());
+            return;
         }
-
-        if (db.Klientet.Any()) return;
 
         // 3. TERAPISTET
         var terapistet = new List<Terapist>
@@ -181,5 +162,53 @@ public static class SeedData
         db.Anetaresimet.AddRange(anetaresimet);
 
         await db.SaveChangesAsync();
+
+        var defaultKlient = klientet.FirstOrDefault();
+        await EnsureUserWithRoleAsync(
+            userManager,
+            "client@wellness.com",
+            "Client123!",
+            defaultKlient?.Emri ?? "Client",
+            defaultKlient?.Mbiemri ?? "Wellness",
+            "Klient",
+            defaultKlient?.KlientId.ToString());
+    }
+
+    private static async Task EnsureUserWithRoleAsync(
+        UserManager<ApplicationUser> userManager,
+        string email,
+        string password,
+        string firstName,
+        string lastName,
+        string role,
+        string? klientId = null)
+    {
+        var user = await userManager.FindByEmailAsync(email);
+        if (user is null)
+        {
+            user = new ApplicationUser
+            {
+                UserName = email,
+                Email = email,
+                FirstName = firstName,
+                LastName = lastName,
+                IsActive = true,
+                EmailConfirmed = true,
+                KlientId = klientId
+            };
+
+            var create = await userManager.CreateAsync(user, password);
+            if (!create.Succeeded) return;
+        }
+        else if (role == "Klient" && string.IsNullOrWhiteSpace(user.KlientId) && !string.IsNullOrWhiteSpace(klientId))
+        {
+            user.KlientId = klientId;
+            await userManager.UpdateAsync(user);
+        }
+
+        if (!await userManager.IsInRoleAsync(user, role))
+        {
+            await userManager.AddToRoleAsync(user, role);
+        }
     }
 }

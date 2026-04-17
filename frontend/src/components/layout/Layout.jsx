@@ -60,6 +60,8 @@ const clientNavItems = [
 function SidebarContent({ onClose, lang = 'sq' }) {
   const { user, clearAuth } = useAuthStore()
   const navigate = useNavigate()
+  const roles = Array.isArray(user?.roles) ? user.roles : []
+  const isAdmin = user?.role === 'Admin' || roles.includes('Admin') || roles.includes('Staff')
 
   const handleLogout = async () => {
     try {
@@ -92,7 +94,7 @@ function SidebarContent({ onClose, lang = 'sq' }) {
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto px-4 py-6 space-y-1">
-        {(user?.roles?.includes('Admin') || user?.roles?.includes('Staff') ? adminNavItems : clientNavItems).map(({ to, labelKey, icon: Icon }) => (
+        {(isAdmin ? adminNavItems : clientNavItems).map(({ to, labelKey, icon: Icon }) => (
           <NavLink
             key={to}
             to={to}
@@ -174,6 +176,8 @@ export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const { user } = useAuthStore()
+  const roles = Array.isArray(user?.roles) ? user.roles : []
+  const displayRole = user?.role || roles[0] || 'Anetar'
   const { theme, toggleTheme } = useThemeStore()
   const { lang, toggleLang } = useLangStore()
   const isOnline = useOnlineStatus()
@@ -236,7 +240,7 @@ export default function Layout() {
             </h2>
             <div className="px-3 py-1 bg-health-accent/10 border border-health-accent/20 rounded-lg">
               <span className="text-[10px] font-bold text-health-accent uppercase tracking-widest">
-                {user?.roles?.[0] || 'Anëtar'}
+                {displayRole}
               </span>
             </div>
           </div>
@@ -292,3 +296,4 @@ export default function Layout() {
     </div>
   )
 }
+

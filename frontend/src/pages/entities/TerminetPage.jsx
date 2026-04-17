@@ -10,10 +10,16 @@ export function TerminetPage() {
   const [sherbimet, setSherbimet] = useState([])
   const [terapistet, setTerapistet] = useState([])
 
+  const toArray = (payload) => {
+    if (Array.isArray(payload?.data)) return payload.data
+    if (Array.isArray(payload)) return payload
+    return []
+  }
+
   useEffect(() => {
-    klientetApi.getAll().then((r) => setKlientet(r.data ?? [])).catch(() => {})
-    sherbiimetApi.getAll().then((r) => setSherbimet(r.data ?? [])).catch(() => {})
-    terapistetApi.getAll().then((r) => setTerapistet(r.data ?? [])).catch(() => {})
+    klientetApi.getAll().then((r) => setKlientet(toArray(r.data))).catch(() => {})
+    sherbiimetApi.getAll().then((r) => setSherbimet(toArray(r.data))).catch(() => {})
+    terapistetApi.getAll().then((r) => setTerapistet(toArray(r.data))).catch(() => {})
   }, [])
 
   return (
