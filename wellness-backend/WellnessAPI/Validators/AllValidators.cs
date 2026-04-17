@@ -52,6 +52,16 @@ public class AuthValidators
             RuleFor(x => x.LastName).NotEmpty().MaximumLength(50);
             RuleFor(x => x.Email).NotEmpty().EmailAddress();
             RuleFor(x => x.Password).NotEmpty().MinimumLength(8);
+            RuleFor(x => x.Role)
+                .Must(r => r == "Klient" || r == "Therapist" || r == "Admin")
+                .WithMessage("Roli duhet te jete Klient, Doktor ose Admin.");
+
+            When(x => x.Role == "Therapist", () =>
+            {
+                RuleFor(x => x.Specializimi)
+                    .NotEmpty()
+                    .WithMessage("Specializimi eshte i detyrueshem per doktor.");
+            });
         }
     }
 }

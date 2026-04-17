@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using WellnessAPI.Data;
 using WellnessAPI.DTOs;
 using WellnessAPI.Models.Domain;
@@ -64,6 +65,25 @@ public class AuthController : ControllerBase
             await _db.SaveChangesAsync();
             user.KlientId = klient.KlientId.ToString();
             await _userManager.UpdateAsync(user);
+        }
+        else if (role == "Therapist")
+        {
+            var exists = await _db.Terapistet.AnyAsync(t => t.Email == dto.Email);
+            if (!exists)
+            {
+                var terapist = new Terapist
+                {
+                    Emri = dto.FirstName,
+                    Mbiemri = dto.LastName,
+                    Email = dto.Email,
+                    Specializimi = string.IsNullOrWhiteSpace(dto.Specializimi) ? "General" : dto.Specializimi,
+                    Licenca = dto.Licenca,
+                    Telefoni = dto.Telefoni,
+                    Aktiv = true
+                };
+                _db.Terapistet.Add(terapist);
+                await _db.SaveChangesAsync();
+            }
         }
 
         var ip = HttpContext.Connection.RemoteIpAddress?.ToString();

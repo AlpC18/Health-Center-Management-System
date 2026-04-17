@@ -1,6 +1,15 @@
 namespace WellnessAPI.DTOs;
 
-public record RegisterDto(string FirstName, string LastName, string Email, string Password, string Role = "Klient");
+public record RegisterDto(
+    string FirstName,
+    string LastName,
+    string Email,
+    string Password,
+    string Role = "Klient",
+    string? Specializimi = null,
+    string? Licenca = null,
+    string? Telefoni = null
+);
 public record LoginDto(string Email, string Password);
 public record AuthResponseDto(string AccessToken, string RefreshToken, DateTime ExpiresAt, UserInfoDto User);
 public record UserInfoDto(string Id, string Email, string FirstName, string LastName, string Role);

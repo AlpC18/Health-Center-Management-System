@@ -37,6 +37,7 @@ export function LoginPage() {
   const { setAuth } = useAuthStore()
   const { lang } = useLangStore()
   const [form, setForm] = useState({ email: '', password: '' })
+  const [loginType, setLoginType] = useState('Klient')
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
 
@@ -49,8 +50,18 @@ export function LoginPage() {
     setLoading(true)
     try {
       const res = await authApi.login(form)
-      setAuth(res.data)
       const role = res?.data?.user?.role
+
+      if (loginType === 'Doktor' && role !== 'Therapist') {
+        toast.error('Kjo llogari nuk eshte Doktor.')
+        return
+      }
+      if (loginType === 'Klient' && role !== 'Klient') {
+        toast.error('Kjo llogari nuk eshte Klient.')
+        return
+      }
+
+      setAuth(res.data)
       navigate(role === 'Klient' ? '/portal/dashboard' : '/dashboard')
     } catch {
       toast.error(t(lang, 'loginError'))
@@ -62,12 +73,29 @@ export function LoginPage() {
   return (
     <AuthLayout title={t(lang, 'welcome')} subtitle={t(lang, 'loginSubtitle')}>
       <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="grid grid-cols-2 gap-2 p-1 bg-health-bg rounded-xl border border-health-border">
+          <button
+            type="button"
+            onClick={() => setLoginType('Klient')}
+            className={`px-3 py-2 rounded-lg text-sm font-semibold transition-all ${loginType === 'Klient' ? 'bg-health-brand text-white' : 'text-health-secondary hover:bg-health-hover'}`}
+          >
+            Kycu si Klient
+          </button>
+          <button
+            type="button"
+            onClick={() => setLoginType('Doktor')}
+            className={`px-3 py-2 rounded-lg text-sm font-semibold transition-all ${loginType === 'Doktor' ? 'bg-health-brand text-white' : 'text-health-secondary hover:bg-health-hover'}`}
+          >
+            Kycu si Doktor
+          </button>
+        </div>
+
         <div>
           <label className="label">{t(lang, 'email')}</label>
           <input
             type="email"
             className="input"
-            placeholder="ju@example.com"
+            placeholder={loginType === 'Doktor' ? 'doktor@example.com' : 'ju@example.com'}
             value={form.email}
             onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
             autoComplete="email"
@@ -115,7 +143,16 @@ export function RegisterPage() {
   const navigate = useNavigate()
   const { setAuth } = useAuthStore()
   const { lang } = useLangStore()
-  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', password: '', role: 'Klient' })
+  const [form, setForm] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    password: '',
+    role: 'Klient',
+    specializimi: '',
+    licenca: '',
+    telefoni: '',
+  })
   const [loading, setLoading] = useState(false)
 
   const handleSubmit = async (e) => {
@@ -130,6 +167,10 @@ export function RegisterPage() {
     }
     if (!/\d/.test(form.password)) {
       toast.error('Fjalekalimi duhet te permbaje te pakten nje numer.')
+      return
+    }
+    if (form.role === 'Therapist' && !form.specializimi.trim()) {
+      toast.error('Specializimi eshte i detyrueshem per doktor.')
       return
     }
     setLoading(true)
@@ -215,9 +256,48 @@ export function RegisterPage() {
           >
             <option value="Klient">Klient</option>
             <option value="Therapist">Doktor</option>
-            <option value="Admin">Admin</option>
           </select>
         </div>
+
+        {form.role === 'Therapist' && (
+          <div className="space-y-4 p-4 rounded-xl border border-health-border bg-health-bg/60">
+            <p className="text-xs font-semibold text-health-secondary uppercase tracking-wider">
+              Te Dhenat e Doktorit
+            </p>
+            <div>
+              <label className="label">Specializimi *</label>
+              <input
+                type="text"
+                className="input"
+                placeholder="p.sh. Fizioterapi"
+                value={form.specializimi}
+                onChange={(e) => setForm((p) => ({ ...p, specializimi: e.target.value }))}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="label">Licenca</label>
+                <input
+                  type="text"
+                  className="input"
+                  placeholder="p.sh. LIC-2026-001"
+                  value={form.licenca}
+                  onChange={(e) => setForm((p) => ({ ...p, licenca: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="label">Telefoni</label>
+                <input
+                  type="text"
+                  className="input"
+                  placeholder="+383 44 000 000"
+                  value={form.telefoni}
+                  onChange={(e) => setForm((p) => ({ ...p, telefoni: e.target.value }))}
+                />
+              </div>
+            </div>
+          </div>
+        )}
 
         <button type="submit" className="btn-primary w-full justify-center mt-2" disabled={loading}>
           {loading ? <Spinner size="sm" /> : null}
