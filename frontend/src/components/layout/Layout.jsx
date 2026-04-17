@@ -61,7 +61,12 @@ function SidebarContent({ onClose, lang = 'sq' }) {
   const { user, clearAuth } = useAuthStore()
   const navigate = useNavigate()
   const roles = Array.isArray(user?.roles) ? user.roles : []
-  const isAdmin = user?.role === 'Admin' || roles.includes('Admin') || roles.includes('Staff')
+  const isAdmin =
+    user?.role === 'Admin' ||
+    user?.role === 'Therapist' ||
+    roles.includes('Admin') ||
+    roles.includes('Staff') ||
+    roles.includes('Therapist')
 
   const handleLogout = async () => {
     try {

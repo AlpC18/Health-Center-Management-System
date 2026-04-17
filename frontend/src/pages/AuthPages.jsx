@@ -50,7 +50,8 @@ export function LoginPage() {
     try {
       const res = await authApi.login(form)
       setAuth(res.data)
-      navigate('/dashboard')
+      const role = res?.data?.user?.role
+      navigate(role === 'Klient' ? '/portal/dashboard' : '/dashboard')
     } catch {
       toast.error(t(lang, 'loginError'))
     } finally {
@@ -114,7 +115,7 @@ export function RegisterPage() {
   const navigate = useNavigate()
   const { setAuth } = useAuthStore()
   const { lang } = useLangStore()
-  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', password: '' })
+  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', password: '', role: 'Klient' })
   const [loading, setLoading] = useState(false)
 
   const handleSubmit = async (e) => {
@@ -135,7 +136,8 @@ export function RegisterPage() {
     try {
       const res = await authApi.register(form)
       setAuth(res.data)
-      navigate('/dashboard')
+      const role = res?.data?.user?.role
+      navigate(role === 'Klient' ? '/portal/dashboard' : '/dashboard')
     } catch (err) {
       if (err.response?.data?.message === 'EXISTING_ACCOUNT') {
         toast.error(err.response.data.text || 'Kjo llogari ekziston.')
@@ -202,6 +204,19 @@ export function RegisterPage() {
             onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))}
             autoComplete="new-password"
           />
+        </div>
+
+        <div>
+          <label className="label">Roli</label>
+          <select
+            className="input"
+            value={form.role}
+            onChange={(e) => setForm((p) => ({ ...p, role: e.target.value }))}
+          >
+            <option value="Klient">Klient</option>
+            <option value="Therapist">Doktor</option>
+            <option value="Admin">Admin</option>
+          </select>
         </div>
 
         <button type="submit" className="btn-primary w-full justify-center mt-2" disabled={loading}>

@@ -59,7 +59,12 @@ function KlientRoute({ children }) {
 function GuestRoute() {
   const { accessToken, user } = useAuthStore()
   const roles = Array.isArray(user?.roles) ? user.roles : []
-  const isAdmin = user?.role === 'Admin' || roles.includes('Admin') || roles.includes('Staff')
+  const isAdmin =
+    user?.role === 'Admin' ||
+    user?.role === 'Therapist' ||
+    roles.includes('Admin') ||
+    roles.includes('Staff') ||
+    roles.includes('Therapist')
   const defaultPath = isAdmin ? '/dashboard' : '/portal/dashboard'
   return accessToken ? <Navigate to={defaultPath} replace /> : <Outlet />
 }
