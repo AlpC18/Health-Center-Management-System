@@ -22,6 +22,7 @@ public record TerapistResponseDto(int TerapistId, string Emri, string Mbiemri, s
 public record TerminCreateDto(int KlientId, int SherbimId, int TerapistId, DateTime DataTerminit, TimeSpan OraFillimit, TimeSpan OraMbarimit, string? Statusi, string? Shenimet);
 public record TerminUpdateDto(int KlientId, int SherbimId, int TerapistId, DateTime DataTerminit, TimeSpan OraFillimit, TimeSpan OraMbarimit, string Statusi, string? Shenimet);
 public record TerminResponseDto(int TerminId, int KlientId, string KlientEmri, int SherbimId, string SherbimEmri, int TerapistId, string TerapistEmri, DateTime DataTerminit, TimeSpan OraFillimit, TimeSpan OraMbarimit, string Statusi, string? Shenimet);
+public record PortalTerminCreateDto(int SherbimId, int TerapistId, DateTime DataTerminit, TimeSpan OraFillimit, TimeSpan OraMbarimit, string? Statusi, string? Shenimet);
 
 public record PaketaCreateDto(string EmriPaketes, string? Pershkrimi, string? SherbimiPerfshire, decimal Cmimi, int KohezgjatjaMuaj, bool Aktive = true);
 public record PaketaUpdateDto(string EmriPaketes, string? Pershkrimi, string? SherbimiPerfshire, decimal Cmimi, int KohezgjatjaMuaj, bool Aktive);

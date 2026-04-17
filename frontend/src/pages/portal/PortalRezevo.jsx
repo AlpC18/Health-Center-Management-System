@@ -63,7 +63,12 @@ export default function PortalRezevo() {
       toast.success('Termini u rezervua me sukses!')
       navigate('/portal/terminet')
     } catch (err) {
-      setError(err.response?.data?.message || 'Rezervimi dështoi.')
+      const data = err.response?.data
+      if (Array.isArray(data?.errors) && data.errors.length > 0) {
+        setError(data.errors[0])
+      } else {
+        setError(data?.message || 'Rezervimi dështoi.')
+      }
     } finally {
       setSaving(false)
     }
@@ -244,3 +249,4 @@ export default function PortalRezevo() {
     </div>
   )
 }
+

@@ -137,7 +137,7 @@ public class KlientPortalController : ControllerBase
     }
 
     [HttpPost("terminet")]
-    public async Task<IActionResult> CreateTermin([FromBody] TerminCreateDto dto)
+    public async Task<IActionResult> CreateTermin([FromBody] PortalTerminCreateDto dto)
     {
         var klientId = await GetKlientIdAsync();
         if (klientId == null) return NotFound();
