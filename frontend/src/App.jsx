@@ -5,9 +5,8 @@ import useAuthStore from './store/authStore'
 import Layout from './components/layout/Layout'
 import SignalRListener from './components/SignalRListener'
 import PortalLayout from './components/layout/PortalLayout'
+import { ForgotPasswordPage, LoginPage, RegisterPage, ResetPasswordPage } from './pages/AuthPages'
 
-const LoginPage = lazy(() => import('./pages/AuthPages').then((m) => ({ default: m.LoginPage })))
-const RegisterPage = lazy(() => import('./pages/AuthPages').then((m) => ({ default: m.RegisterPage })))
 const DashboardPage = lazy(() => import('./pages/DashboardPage'))
 const KlientetPage = lazy(() => import('./pages/entities').then((m) => ({ default: m.KlientetPage })))
 const SherbiimetPage = lazy(() => import('./pages/entities').then((m) => ({ default: m.SherbiimetPage })))
@@ -92,6 +91,8 @@ export default function App() {
         <Route element={<GuestRoute />}>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
         </Route>
 
         {/* Protected routes */}

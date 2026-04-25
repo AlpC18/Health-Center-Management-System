@@ -62,7 +62,7 @@ public class KlientetController : ControllerBase
     }
 
     [HttpPost]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,Therapist")]
     public async Task<ActionResult<KlientResponseDto>> Create([FromBody] KlientCreateDto dto)
     {
         if (await _db.Klientet.AnyAsync(k => k.Email == dto.Email))
@@ -94,7 +94,7 @@ public class KlientetController : ControllerBase
     }
 
     [HttpPut("{id:int}")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,Therapist")]
     public async Task<ActionResult<KlientResponseDto>> Update(
         int id, [FromBody] KlientUpdateDto dto)
     {
@@ -113,21 +113,28 @@ public class KlientetController : ControllerBase
     }
 
     [HttpDelete("{id:int}")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,Therapist")]
     public async Task<IActionResult> Delete(int id)
     {
         var k = await _db.Klientet.FindAsync(id);
         if (k is null) return NotFound();
         var old = ToDto(k);
-        _fileService.DeleteFile(k.FotoPath);
-        _db.Klientet.Remove(k);
-        await _db.SaveChangesAsync();
+        try
+        {
+            _fileService.DeleteFile(k.FotoPath);
+            _db.Klientet.Remove(k);
+            await _db.SaveChangesAsync();
+        }
+        catch (DbUpdateException)
+        {
+            return Conflict(new { message = "Klienti nuk mund të fshihet sepse ka të dhëna të lidhura (termine/anëtarësime/shitje)." });
+        }
         await _audit.LogAsync("DELETE", "Klient", id.ToString(), old, null);
         return NoContent();
     }
 
     [HttpPost("{id:int}/foto")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,Therapist")]
     public async Task<ActionResult<KlientResponseDto>> UploadFoto(int id, IFormFile file)
     {
         var k = await _db.Klientet.FindAsync(id);

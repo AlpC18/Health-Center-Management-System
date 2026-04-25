@@ -15,6 +15,8 @@ public record AuthResponseDto(string AccessToken, string RefreshToken, DateTime 
 public record UserInfoDto(string Id, string Email, string FirstName, string LastName, string Role);
 public record RefreshTokenRequestDto(string RefreshToken);
 public record ChangePasswordDto(string CurrentPassword, string NewPassword);
+public record ForgotPasswordDto(string Email);
+public record ResetPasswordDto(string Token, string NewPassword, string ConfirmPassword);
 
 public record KlientCreateDto(string Emri, string Mbiemri, string Email, string? Telefoni, DateTime? DataLindjes, string? Gjinia, string? KushtetShendetesore);
 public record KlientUpdateDto(string Emri, string Mbiemri, string Email, string? Telefoni, DateTime? DataLindjes, string? Gjinia, string? KushtetShendetesore);

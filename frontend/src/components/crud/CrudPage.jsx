@@ -120,8 +120,8 @@ export default function CrudPage({
     if (!undone) {
       try {
         await api.delete(item[idKey])
-      } catch {
-        notify.error('Fshirja dështoi.')
+      } catch (err) {
+        notify.error(err?.response?.data?.message || 'Fshirja dështoi.')
         setItems((prev) => [...prev, item].sort((a, b) => a[idKey] - b[idKey]))
       }
     }
@@ -344,3 +344,4 @@ export default function CrudPage({
     </div>
   )
 }
+

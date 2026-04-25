@@ -15,6 +15,10 @@ using WellnessAPI.Validators;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Logging.ClearProviders();
+builder.Logging.AddConsole();
+builder.Logging.AddDebug();
+
 // 1. DB
 var dbProvider = (builder.Configuration["DatabaseProvider"] ?? "MySql").Trim();
 builder.Services.AddDbContext<ApplicationDbContext>(options =>

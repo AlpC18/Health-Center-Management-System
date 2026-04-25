@@ -11,6 +11,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
         : base(options) { }
 
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
     public DbSet<Klient> Klientet => Set<Klient>();
     public DbSet<Sherbim> Sherbimet => Set<Sherbim>();
     public DbSet<Terapist> Terapistet => Set<Terapist>();
@@ -32,6 +33,15 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             e.HasKey(r => r.Id);
             e.Property(r => r.Token).IsRequired().HasMaxLength(500);
             e.HasOne(r => r.User).WithMany(u => u.RefreshTokens)
+             .HasForeignKey(r => r.UserId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<PasswordResetToken>(e => {
+            e.HasKey(r => r.Id);
+            e.Property(r => r.TokenHash).IsRequired().HasMaxLength(128);
+            e.HasIndex(r => r.TokenHash).IsUnique();
+            e.HasIndex(r => new { r.UserId, r.UsedAt, r.ExpiresAt });
+            e.HasOne(r => r.User).WithMany(u => u.PasswordResetTokens)
              .HasForeignKey(r => r.UserId).OnDelete(DeleteBehavior.Cascade);
         });
 
