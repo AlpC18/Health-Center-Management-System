@@ -1,4 +1,4 @@
-﻿using System.Security.Claims;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -20,17 +20,23 @@ public class AuthController : ControllerBase
     private readonly TokenService _tokenService;
     private readonly ApplicationDbContext _db;
     private readonly IWebHostEnvironment _env;
+    private readonly EmailService _emailService;
+    private readonly IConfiguration _configuration;
 
     public AuthController(
         UserManager<ApplicationUser> um,
         TokenService ts,
         ApplicationDbContext db,
-        IWebHostEnvironment env)
+        IWebHostEnvironment env,
+        EmailService emailService,
+        IConfiguration configuration)
     {
         _userManager = um;
         _tokenService = ts;
         _db = db;
         _env = env;
+        _emailService = emailService;
+        _configuration = configuration;
     }
 
     [HttpPost("register")]
@@ -176,6 +182,122 @@ public class AuthController : ControllerBase
         return Ok(new { message = "Fjalekalimi u ndryshua." });
     }
 
+
+    [HttpPost("forgot-password")]
+    public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordDto dto)
+    {
+        if (string.IsNullOrWhiteSpace(dto.Email))
+            return BadRequest(new { message = "Email eshte i detyrueshem." });
+
+        var user = await _userManager.FindByEmailAsync(dto.Email.Trim());
+
+        // Always return the same response to avoid account enumeration.
+        if (user is null)
+            return Ok(new { message = "Nese email-i ekziston, link-u i resetimit u dergua." });
+
+        var rawToken = await _userManager.GeneratePasswordResetTokenAsync(user);
+        var combinedToken = $"{user.Id}:{Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(rawToken))}";
+        var encodedToken = Uri.EscapeDataString(combinedToken);
+        var frontendBaseUrl = (_configuration["App:FrontendBaseUrl"] ?? "http://localhost:5173").TrimEnd('/');
+        var resetUrl = $"{frontendBaseUrl}/reset-password/{encodedToken}";
+
+        var subject = "Resetimi i fjalekalimit";
+        var body = $@"
+            <p>Pershendetje {user.FirstName ?? user.Email},</p>
+            <p>Keni kerkuar resetim te fjalekalimit. Klikoni linkun me poshte:</p>
+            <p><a href='{resetUrl}'>Reset Password</a></p>
+            <p>Link-u skadon pas nje periudhe te shkurter sigurie.</p>
+            <p>Nese nuk e keni kerkuar ju, injoroni kete email.</p>";
+
+        try
+        {
+            await _emailService.SendEmailAsync(user.Email!, subject, body);
+        }
+        catch
+        {
+            // Do not fail the endpoint because of SMTP/config issues.
+        }
+
+        return Ok(new { message = "Nese email-i ekziston, link-u i resetimit u dergua." });
+    }
+
+    [HttpGet("reset-password/{token}/validate")]
+    public async Task<IActionResult> ValidateResetToken(string token)
+    {
+        if (string.IsNullOrWhiteSpace(token))
+            return BadRequest(new { message = "Token mungon." });
+
+        var decodedToken = Uri.UnescapeDataString(token);
+        var split = decodedToken.Split(':', 2);
+        if (split.Length != 2)
+            return BadRequest(new { message = "Link-u per resetim eshte i pavlefshem ose ka skaduar." });
+
+        string userId;
+        string rawToken;
+        try
+        {
+            userId = split[0];
+            rawToken = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(split[1]));
+        }
+        catch
+        {
+            return BadRequest(new { message = "Link-u per resetim eshte i pavlefshem ose ka skaduar." });
+        }
+
+        var user = await _userManager.FindByIdAsync(userId);
+        if (user is null)
+            return BadRequest(new { message = "Link-u per resetim eshte i pavlefshem ose ka skaduar." });
+
+        var verificationResult = await _userManager.VerifyUserTokenAsync(
+            user,
+            _userManager.Options.Tokens.PasswordResetTokenProvider,
+            "ResetPassword",
+            rawToken);
+
+        if (!verificationResult)
+            return BadRequest(new { message = "Link-u per resetim eshte i pavlefshem ose ka skaduar." });
+
+        return Ok(new { message = "Token valid." });
+    }
+
+    [HttpPost("reset-password")]
+    public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordDto dto)
+    {
+        if (string.IsNullOrWhiteSpace(dto.Token))
+            return BadRequest(new { message = "Token mungon." });
+
+        if (dto.NewPassword != dto.ConfirmPassword)
+            return BadRequest(new { message = "Fjalekalimet nuk perputhen." });
+
+        var decodedToken = Uri.UnescapeDataString(dto.Token);
+        var split = decodedToken.Split(':', 2);
+        if (split.Length != 2)
+            return BadRequest(new { message = "Link-u per resetim eshte i pavlefshem ose ka skaduar." });
+
+        string userId;
+        string rawToken;
+        try
+        {
+            userId = split[0];
+            rawToken = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(split[1]));
+        }
+        catch
+        {
+            return BadRequest(new { message = "Link-u per resetim eshte i pavlefshem ose ka skaduar." });
+        }
+
+        var user = await _userManager.FindByIdAsync(userId);
+        if (user is null)
+            return BadRequest(new { message = "Link-u per resetim eshte i pavlefshem ose ka skaduar." });
+
+        var resetResult = await _userManager.ResetPasswordAsync(user, rawToken, dto.NewPassword);
+        if (!resetResult.Succeeded)
+            return BadRequest(new { errors = resetResult.Errors.Select(e => e.Description) });
+
+        await _tokenService.RevokeAllTokensAsync(user.Id);
+        DeleteRefreshCookie();
+        return Ok(new { message = "Fjalekalimi u resetua me sukses." });
+    }
     private string? ResolveRefreshToken(RefreshTokenRequestDto? dto)
     {
         if (!string.IsNullOrWhiteSpace(dto?.RefreshToken))
