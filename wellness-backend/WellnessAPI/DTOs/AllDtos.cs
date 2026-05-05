@@ -46,6 +46,9 @@ public record AnetaresimResponseDto(int AnetaresimId, int KlientId, string Klien
 public record ProgramCreateDto(string EmriProgramit, string? Pershkrimi, int KohezgjatjaJave, string? Qellimi, string? Ushtrimet, string? Dieta);
 public record ProgramUpdateDto(string EmriProgramit, string? Pershkrimi, int KohezgjatjaJave, string? Qellimi, string? Ushtrimet, string? Dieta);
 public record ProgramResponseDto(int ProgramId, string EmriProgramit, string? Pershkrimi, int KohezgjatjaJave, string? Qellimi, string? Ushtrimet, string? Dieta);
+public record KlientProgramCreateDto(int KlientId, int ProgramId, DateTime DataFillimit, DateTime? DataMbarimit, int Progresi, string Statusi);
+public record KlientProgramUpdateDto(int KlientId, int ProgramId, DateTime DataFillimit, DateTime? DataMbarimit, int Progresi, string Statusi);
+public record KlientProgramResponseDto(int KpId, int KlientId, string KlientEmri, int ProgramId, string ProgramEmri, DateTime DataFillimit, DateTime? DataMbarimit, int Progresi, string Statusi);
 
 public record ProduktCreateDto(string EmriProduktit, string? Kategoria, string? Pershkrimi, decimal Cmimi, int SasiaStok, bool Aktiv = true);
 public record ProduktUpdateDto(string EmriProduktit, string? Kategoria, string? Pershkrimi, decimal Cmimi, int SasiaStok, bool Aktiv);
