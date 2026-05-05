@@ -682,3 +682,52 @@ export function VleresimForm({ initial, onSave, loading, onCancel, klientet = []
     </form>
   )
 }
+
+// KlientProgramForm
+export function KlientProgramForm({ initial, onSave, loading, onCancel, klientet = [], programet = [] }) {
+  const [f, setF] = useState({
+    klientId: '',
+    programId: '',
+    dataFillimit: '',
+    dataMbarimit: '',
+    progresi: 0,
+    statusi: 'Aktiv',
+    ...initial,
+  })
+
+  const set = (k) => (e) => setF((p) => ({ ...p, [k]: e.target.value }))
+  const submit = (e) => { e.preventDefault(); onSave({ ...f, progresi: Number(f.progresi || 0) }) }
+
+  return (
+    <form onSubmit={submit} className="space-y-4">
+      <Field label="Klienti" required>
+        <select className="input" value={emptyStr(f.klientId)} onChange={set('klientId')} required>
+          <option value="">-- Zgjidh klientin --</option>
+          {klientet.map((k) => <option key={k.klientId} value={k.klientId}>{k.emri} {k.mbiemri}</option>)}
+        </select>
+      </Field>
+      <Field label="Programi" required>
+        <select className="input" value={emptyStr(f.programId)} onChange={set('programId')} required>
+          <option value="">-- Zgjidh programin --</option>
+          {programet.map((p) => <option key={p.programId} value={p.programId}>{p.emriProgramit}</option>)}
+        </select>
+      </Field>
+      <div className="grid grid-cols-2 gap-4">
+        <Field label="Data Fillimit" required><input className="input" type="date" value={emptyStr(f.dataFillimit)} onChange={set('dataFillimit')} required /></Field>
+        <Field label="Data Mbarimit"><input className="input" type="date" value={emptyStr(f.dataMbarimit)} onChange={set('dataMbarimit')} /></Field>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <Field label="Progresi (%)" required><input className="input" type="number" min="0" max="100" value={emptyStr(f.progresi)} onChange={set('progresi')} required /></Field>
+        <Field label="Statusi" required>
+          <select className="input" value={emptyStr(f.statusi)} onChange={set('statusi')} required>
+            <option value="Aktiv">Aktiv</option>
+            <option value="Ne Pauze">Ne Pauze</option>
+            <option value="Perfunduar">Perfunduar</option>
+            <option value="Anuluar">Anuluar</option>
+          </select>
+        </Field>
+      </div>
+      <FormActions loading={loading} onCancel={onCancel} />
+    </form>
+  )
+}
