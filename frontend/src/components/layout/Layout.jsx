@@ -44,6 +44,7 @@ const adminNavItems = [
   { to: '/paketat', labelKey: 'packages', icon: Package },
   { to: '/anetaresimet', labelKey: 'memberships', icon: CreditCard },
   { to: '/programet', labelKey: 'programs', icon: Dumbbell },
+  { to: '/klient-programet', labelKey: 'Klient Programet', icon: Activity },
   { to: '/produktet', labelKey: 'products', icon: ShoppingBag },
   { to: '/shitjet', labelKey: 'sales', icon: ShoppingCart },
   { to: '/vlereisimet', labelKey: 'reviews', icon: Star },
