@@ -105,8 +105,7 @@ export default function App() {
             <Route path="/terminet" element={<TerminetPage />} />
             <Route path="/paketat" element={<PaketaPage />} />
             <Route path="/anetaresimet" element={<AnetaresiimetPage />} />
-            <Route path="/programet" element={<ProgrametPage />} />
-            <Route path="/produktet" element={<ProduktetPage />} />
+            <Route path="/programet" element={<ProgrametPage />} />`r`n            <Route path="/klient-programet" element={<KlientProgrametPage />} />`r`n            <Route path="/produktet" element={<ProduktetPage />} />
             <Route path="/shitjet" element={<ShitjetPage />} />
             <Route path="/vlereisimet" element={<VlereisiimetPage />} />
             <Route path="/audit-logs" element={<AuditLogsPage />} />

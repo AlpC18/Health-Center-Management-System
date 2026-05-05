@@ -9,3 +9,5 @@ export * from './ProduktetPage'
 export * from './ShitjetPage'
 export * from './AuditLogsPage'
 export * from './VleresimePage' // contains VlereisiimetPage
+
+export * from './KlientProgrametPage'
