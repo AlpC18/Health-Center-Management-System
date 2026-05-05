@@ -1,9 +1,16 @@
-import axios from 'axios'
+﻿import axios from 'axios'
 import useAuthStore from '../store/authStore'
 
-const BASE_URL = 'http://localhost:5077/api'
+const BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5077/api').replace(/\/+$/, '')
 
-const api = axios.create({ baseURL: BASE_URL })
+if (import.meta.env.PROD && BASE_URL.startsWith('http://')) {
+  throw new Error('Production ortaminda HTTPS API URL zorunludur (VITE_API_BASE_URL).')
+}
+
+const api = axios.create({
+  baseURL: BASE_URL,
+  withCredentials: true,
+})
 
 api.interceptors.request.use((config) => {
   const token = useAuthStore.getState().accessToken
@@ -47,10 +54,10 @@ api.interceptors.response.use(
       originalRequest._retry = true
       isRefreshing = true
 
-      const { refreshToken, setAccessToken, clearAuth } = useAuthStore.getState()
+      const { setAccessToken, clearAuth } = useAuthStore.getState()
 
       try {
-        const res = await axios.post(`${BASE_URL}/auth/refresh`, { refreshToken })
+        const res = await api.post('/auth/refresh', {})
         const newToken = res.data.accessToken
         setAccessToken(newToken)
         processQueue(null, newToken)
@@ -81,7 +88,7 @@ const crudApi = (endpoint) => ({
 export const authApi = {
   login: (data) => api.post('/auth/login', data),
   register: (data) => api.post('/auth/register', data),
-  logout: () => api.post('/auth/logout'),
+  logout: () => api.post('/auth/logout', {}),
   forgotPassword: (data) => api.post('/auth/forgot-password', data),
   validateResetToken: (token) => api.get(`/auth/reset-password/${encodeURIComponent(token)}/validate`),
   resetPassword: (data) => api.post('/auth/reset-password', data),
