@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -15,46 +15,26 @@ using WellnessAPI.Validators;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Logging.ClearProviders();
-builder.Logging.AddConsole();
-builder.Logging.AddDebug();
-
 // 1. DB
-var dbProvider = (builder.Configuration["DatabaseProvider"] ?? "MySql").Trim();
-builder.Services.AddDbContext<ApplicationDbContext>(options =>
-{
-    if (dbProvider.Equals("MySql", StringComparison.OrdinalIgnoreCase))
-    {
-        var conn = builder.Configuration.GetConnectionString("MySqlConnection")
-            ?? throw new InvalidOperationException("Missing ConnectionStrings:MySqlConnection");
-        options.UseMySql(conn, new MySqlServerVersion(new Version(8, 0, 36)));
-    }
-    else if (dbProvider.Equals("Sqlite", StringComparison.OrdinalIgnoreCase))
-    {
-        var conn = builder.Configuration.GetConnectionString("DefaultConnection")
-            ?? throw new InvalidOperationException("Missing ConnectionStrings:DefaultConnection");
-        options.UseSqlite(conn);
-    }
-    else
-    {
-        throw new InvalidOperationException($"Unsupported DatabaseProvider '{dbProvider}'. Use 'MySql' or 'Sqlite'.");
-    }
-});
+builder.Services.AddDbContext<ApplicationDbContext>(o =>
+    o.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 // 2. Identity
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>(o => {
     o.Password.RequireDigit = true;
     o.Password.RequiredLength = 8;
-    o.Password.RequireLowercase = false;
-    o.Password.RequireUppercase = false;
-    o.Password.RequireNonAlphanumeric = false;
     o.User.RequireUniqueEmail = true;
 })
 .AddEntityFrameworkStores<ApplicationDbContext>()
 .AddDefaultTokenProviders();
 
 // 3. JWT
-var jwtKey = builder.Configuration["Jwt:Key"]!;
+var jwtKey = builder.Configuration["Jwt:Key"];
+if (string.IsNullOrWhiteSpace(jwtKey) || jwtKey.Contains("CHANGE_ME", StringComparison.OrdinalIgnoreCase))
+{
+    throw new InvalidOperationException("Jwt:Key must be provided via secure configuration (User Secrets or environment variables).");
+}
+
 builder.Services.AddAuthentication(o => {
     o.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
     o.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -106,16 +86,14 @@ builder.Services.AddSwaggerGen(c =>
     {
         Title = "Wellness House API",
         Version = "v1",
-        Description = "RESTful API për sistemin e menaxhimit të Wellness House. Gjitha endpoints kërkojnë JWT Bearer token.",
+        Description = "RESTful API per sistemin e menaxhimit te Wellness House. Gjitha endpoints kerkojne JWT Bearer token.",
         Contact = new() { Name = "Wellness House Dev Team" }
     });
 
-    // Enable XML comments
     var xmlFile = $"{System.Reflection.Assembly.GetExecutingAssembly().GetName().Name}.xml";
     var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
     if (File.Exists(xmlPath)) c.IncludeXmlComments(xmlPath);
 
-    // JWT Bearer button in Swagger UI — Swashbuckle 10 / OpenAPI v2 pattern
     c.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.OpenApiSecurityScheme
     {
         Type = Microsoft.OpenApi.SecuritySchemeType.Http,
@@ -140,11 +118,18 @@ using (var scope = app.Services.CreateScope())
     var db = sp.GetRequiredService<ApplicationDbContext>();
     var um = sp.GetRequiredService<UserManager<ApplicationUser>>();
     var rm = sp.GetRequiredService<RoleManager<IdentityRole>>();
-    
+
     db.Database.Migrate();
     SeedData.SeedAsync(db, um, rm).Wait();
 }
 
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHsts();
+}
+
+app.UseHttpsRedirection();
+app.UseMiddleware<SecurityHeadersMiddleware>();
 app.UseMiddleware<ErrorHandlingMiddleware>();
 app.UseIpRateLimiting();
 app.UseStaticFiles();
