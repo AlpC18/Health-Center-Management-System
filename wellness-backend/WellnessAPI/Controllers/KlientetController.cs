@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
@@ -62,11 +62,11 @@ public class KlientetController : ControllerBase
     }
 
     [HttpPost]
-    [Authorize(Roles = "Admin,Therapist")]
+    [Authorize(Roles = "Admin")]
     public async Task<ActionResult<KlientResponseDto>> Create([FromBody] KlientCreateDto dto)
     {
         if (await _db.Klientet.AnyAsync(k => k.Email == dto.Email))
-            return Conflict(new { message = "Email tashmë ekziston." });
+            return Conflict(new { message = "Email tashmÃ« ekziston." });
 
         var k = new Klient
         {
@@ -94,14 +94,14 @@ public class KlientetController : ControllerBase
     }
 
     [HttpPut("{id:int}")]
-    [Authorize(Roles = "Admin,Therapist")]
+    [Authorize(Roles = "Admin")]
     public async Task<ActionResult<KlientResponseDto>> Update(
         int id, [FromBody] KlientUpdateDto dto)
     {
         var k = await _db.Klientet.FindAsync(id);
         if (k is null) return NotFound();
         if (await _db.Klientet.AnyAsync(x => x.Email == dto.Email && x.KlientId != id))
-            return Conflict(new { message = "Email tashmë përdoret." });
+            return Conflict(new { message = "Email tashmÃ« pÃ«rdoret." });
 
         var old = ToDto(k);
         k.Emri = dto.Emri; k.Mbiemri = dto.Mbiemri; k.Email = dto.Email;
@@ -113,41 +113,34 @@ public class KlientetController : ControllerBase
     }
 
     [HttpDelete("{id:int}")]
-    [Authorize(Roles = "Admin,Therapist")]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Delete(int id)
     {
         var k = await _db.Klientet.FindAsync(id);
         if (k is null) return NotFound();
         var old = ToDto(k);
-        try
-        {
-            _fileService.DeleteFile(k.FotoPath);
-            _db.Klientet.Remove(k);
-            await _db.SaveChangesAsync();
-        }
-        catch (DbUpdateException)
-        {
-            return Conflict(new { message = "Klienti nuk mund të fshihet sepse ka të dhëna të lidhura (termine/anëtarësime/shitje)." });
-        }
+        _fileService.DeleteFile(k.FotoPath);
+        _db.Klientet.Remove(k);
+        await _db.SaveChangesAsync();
         await _audit.LogAsync("DELETE", "Klient", id.ToString(), old, null);
         return NoContent();
     }
 
     [HttpPost("{id:int}/foto")]
-    [Authorize(Roles = "Admin,Therapist")]
+    [Authorize(Roles = "Admin")]
     public async Task<ActionResult<KlientResponseDto>> UploadFoto(int id, IFormFile file)
     {
         var k = await _db.Klientet.FindAsync(id);
         if (k is null) return NotFound();
 
         var path = await _fileService.UploadFileAsync(file, "klientet");
-        if (path != null)
-        {
-            _fileService.DeleteFile(k.FotoPath);
-            k.FotoPath = path;
-            await _db.SaveChangesAsync();
-            await _audit.LogAsync("UPDATE_FOTO", "Klient", id.ToString(), null, new { path });
-        }
+        if (path == null)
+            return BadRequest(new { message = "Vetem imazhe JPG/PNG/WEBP deri ne 5MB lejohen." });
+
+        _fileService.DeleteFile(k.FotoPath);
+        k.FotoPath = path;
+        await _db.SaveChangesAsync();
+        await _audit.LogAsync("UPDATE_FOTO", "Klient", id.ToString(), null, new { path });
         return Ok(ToDto(k));
     }
 
@@ -155,3 +148,4 @@ public class KlientetController : ControllerBase
         k.KlientId, k.Emri, k.Mbiemri, k.Email, k.Telefoni,
         k.DataLindjes, k.Gjinia, k.KushtetShendetesore, k.FotoPath, k.DataRegjistrimit);
 }
+
