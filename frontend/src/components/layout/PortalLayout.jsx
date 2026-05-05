@@ -1,4 +1,4 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Calendar, CreditCard, ShoppingBag,
@@ -12,22 +12,22 @@ const NAV = [
   { label: 'Ballina', path: '/portal/dashboard', icon: LayoutDashboard },
   { label: 'Terminet e Mia', path: '/portal/terminet', icon: Calendar },
   { label: 'Rezervo Termin', path: '/portal/rezervo', icon: Calendar },
-  { label: 'Anëtarësimi', path: '/portal/anetaresimi', icon: CreditCard },
+  { label: 'AnÃ«tarÃ«simi', path: '/portal/anetaresimi', icon: CreditCard },
   { label: 'Programet', path: '/portal/programet', icon: Activity },
   { label: 'Produktet', path: '/portal/produktet', icon: ShoppingBag },
   { label: 'Blerjet e Mia', path: '/portal/shitjet', icon: Package },
-  { label: 'Vlerësimet', path: '/portal/vlereisimet', icon: Star },
+  { label: 'VlerÃ«simet', path: '/portal/vlereisimet', icon: Star },
   { label: 'Profili Im', path: '/portal/profili', icon: User },
 ]
 
 export default function PortalLayout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const { user, refreshToken, clearAuth } = useAuthStore()
+  const { user, clearAuth } = useAuthStore()
   const navigate = useNavigate()
 
   const handleLogout = async () => {
     try {
-      await authApi.logout(refreshToken)
+      await authApi.logout()
     } catch (_) {}
     clearAuth()
     navigate('/login')
@@ -120,3 +120,4 @@ export default function PortalLayout({ children }) {
     </div>
   )
 }
+
