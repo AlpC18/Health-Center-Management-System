@@ -76,6 +76,9 @@ public class TerminetController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] TerminCreateDto dto)
     {
+        if (await HasConflict(dto.TerapistId, dto.DataTerminit, dto.OraFillimit, dto.OraMbarimit))
+            return Conflict("Therapist already has an appointment in this time range.");
+
         var t = new Termin
         {
             KlientId = dto.KlientId,
@@ -88,6 +91,13 @@ public class TerminetController : ControllerBase
             Shenimet = dto.Shenimet
         };
         _db.Terminet.Add(t);
+        _db.TerminStatusHistory.Add(new TerminStatusHistory
+        {
+            Termin = t,
+            StatusiNga = string.Empty,
+            StatusiNe = dto.Statusi,
+            Arsyeja = "Created"
+        });
         await _db.SaveChangesAsync();
         await _audit.LogAsync("Termin", "CREATE", t.TerminId.ToString(), newValues: dto);
 
@@ -104,7 +114,11 @@ public class TerminetController : ControllerBase
     {
         var t = await _db.Terminet.FindAsync(id);
         if (t == null) return NotFound();
+        if (await HasConflict(dto.TerapistId, dto.DataTerminit, dto.OraFillimit, dto.OraMbarimit, id))
+            return Conflict("Therapist already has an appointment in this time range.");
+
         var old = ToDto(t);
+        var oldStatus = t.Statusi;
         t.KlientId = dto.KlientId;
         t.SherbimId = dto.SherbimId;
         t.TerapistId = dto.TerapistId;
@@ -113,6 +127,16 @@ public class TerminetController : ControllerBase
         t.OraMbarimit = dto.OraMbarimit;
         t.Statusi = dto.Statusi;
         t.Shenimet = dto.Shenimet;
+        if (!string.Equals(oldStatus, dto.Statusi, StringComparison.OrdinalIgnoreCase))
+        {
+            _db.TerminStatusHistory.Add(new TerminStatusHistory
+            {
+                TerminId = id,
+                StatusiNga = oldStatus,
+                StatusiNe = dto.Statusi,
+                Arsyeja = "Updated"
+            });
+        }
         await _db.SaveChangesAsync();
         await _audit.LogAsync("Termin", "UPDATE", id.ToString(), oldValues: old, newValues: dto);
 
@@ -143,4 +167,15 @@ public class TerminetController : ControllerBase
             t.TerapistId, $"{t.Terapisti?.Emri} {t.Terapisti?.Mbiemri}",
             t.DataTerminit, t.OraFillimit, t.OraMbarimit,
             t.Statusi, t.Shenimet);
+
+    private async Task<bool> HasConflict(int terapistId, DateTime date, TimeSpan start, TimeSpan end, int? excludeTerminId = null)
+    {
+        return await _db.Terminet.AnyAsync(t =>
+            t.TerapistId == terapistId &&
+            t.DataTerminit.Date == date.Date &&
+            t.Statusi != "Anuluar" &&
+            (!excludeTerminId.HasValue || t.TerminId != excludeTerminId.Value) &&
+            start < t.OraMbarimit &&
+            end > t.OraFillimit);
+    }
 }

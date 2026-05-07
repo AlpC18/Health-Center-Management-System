@@ -15,6 +15,7 @@ const TerminetPage = lazy(() => import('./pages/entities').then((m) => ({ defaul
 const PaketaPage = lazy(() => import('./pages/entities').then((m) => ({ default: m.PaketaPage })))
 const AnetaresiimetPage = lazy(() => import('./pages/entities').then((m) => ({ default: m.AnetaresiimetPage })))
 const ProgrametPage = lazy(() => import('./pages/entities').then((m) => ({ default: m.ProgrametPage })))
+const KlientProgrametPage = lazy(() => import('./pages/entities').then((m) => ({ default: m.KlientProgrametPage })))
 const ProduktetPage = lazy(() => import('./pages/entities').then((m) => ({ default: m.ProduktetPage })))
 const ShitjetPage = lazy(() => import('./pages/entities').then((m) => ({ default: m.ShitjetPage })))
 const VlereisiimetPage = lazy(() => import('./pages/entities').then((m) => ({ default: m.VlereisiimetPage })))
@@ -22,6 +23,7 @@ const CalendarPage = lazy(() => import('./pages/CalendarPage'))
 const ClientPortalPage = lazy(() => import('./pages/ClientPortalPage'))
 const ProfilePage = lazy(() => import('./pages/ProfilePage'))
 const AuditLogsPage = lazy(() => import('./pages/entities').then((m) => ({ default: m.AuditLogsPage })))
+const AdvancedFeaturesPage = lazy(() => import('./pages/AdvancedFeaturesPage'))
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'))
 const PortalDashboard = lazy(() => import('./pages/portal/PortalDashboard'))
 const PortalTerminet = lazy(() => import('./pages/portal/PortalTerminet'))
@@ -105,11 +107,14 @@ export default function App() {
             <Route path="/terminet" element={<TerminetPage />} />
             <Route path="/paketat" element={<PaketaPage />} />
             <Route path="/anetaresimet" element={<AnetaresiimetPage />} />
-            <Route path="/programet" element={<ProgrametPage />} />`r`n            <Route path="/klient-programet" element={<KlientProgrametPage />} />`r`n            <Route path="/produktet" element={<ProduktetPage />} />
+            <Route path="/programet" element={<ProgrametPage />} />
+            <Route path="/klient-programet" element={<KlientProgrametPage />} />
+            <Route path="/produktet" element={<ProduktetPage />} />
             <Route path="/shitjet" element={<ShitjetPage />} />
             <Route path="/vlereisimet" element={<VlereisiimetPage />} />
             <Route path="/audit-logs" element={<AuditLogsPage />} />
             <Route path="/calendar" element={<CalendarPage />} />
+            <Route path="/advanced" element={<AdvancedFeaturesPage />} />
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/portal" element={<ClientPortalPage />} />
           </Route>

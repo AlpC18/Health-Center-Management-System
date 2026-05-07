@@ -133,6 +133,27 @@ export const dashboardApi = {
   getAnalytics: () => api.get('/dashboard/analytics'),
 }
 
+export const advancedApi = {
+  getAvailability: (params) => api.get('/advanced/appointments/availability', { params }),
+  cancelAppointment: (id, data) => api.post(`/advanced/appointments/${id}/cancel`, data),
+  getWaitingList: () => api.get('/advanced/waiting-list'),
+  addWaitingList: (data) => api.post('/advanced/waiting-list', data),
+  updatePackageServices: (id, data) => api.post(`/advanced/packages/${id}/services`, data),
+  createSaleWithStock: (data) => api.post('/advanced/sales', data),
+  updatePaymentStatus: (id, data) => api.patch(`/advanced/sales/${id}/payment-status`, data),
+  mockPayment: (data) => api.post('/advanced/payments/mock', data),
+  getLowStock: () => api.get('/advanced/inventory/low-stock'),
+  getExpiringMemberships: (days = 14) => api.get(`/advanced/memberships/expiring?days=${days}`),
+  getNotifications: () => api.get('/advanced/notifications'),
+  createNotification: (data) => api.post('/advanced/notifications', data),
+  moderateReview: (id, data) => api.patch(`/advanced/reviews/${id}/moderation`, data),
+  getReports: () => api.get('/advanced/reports'),
+  getTherapistPerformance: () => api.get('/advanced/reports/therapists'),
+  getClientRetention: () => api.get('/advanced/reports/client-retention'),
+  getRecommendations: (clientId) => api.get(`/advanced/recommendations/${clientId}`),
+  createBackup: () => api.post('/advanced/backup', {}),
+}
+
 export const auditlogsApi = {
   getAll: (params) => api.get(params ? `/auditlogs?${params}` : '/auditlogs'),
   getRecent: (limit = 20) => api.get(`/auditlogs?limit=${limit}`),

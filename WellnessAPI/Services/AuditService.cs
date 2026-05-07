@@ -19,6 +19,8 @@ public class AuditService
     public async Task LogAsync(string entity, string action, string? entityId, object? oldValues = null, object? newValues = null)
     {
         var user = _httpContextAccessor.HttpContext?.User;
+        var request = _httpContextAccessor.HttpContext?.Request;
+        var connection = _httpContextAccessor.HttpContext?.Connection;
         var userId = user?.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? user?.FindFirst("sub")?.Value;
         var userEmail = user?.FindFirst(ClaimTypes.Email)?.Value ?? user?.FindFirst("email")?.Value;
 
@@ -31,6 +33,8 @@ public class AuditService
             NewValues = newValues != null ? JsonSerializer.Serialize(newValues) : null,
             UserId = userId,
             UserEmail = userEmail,
+            IpAddress = connection?.RemoteIpAddress?.ToString(),
+            UserAgent = request?.Headers.UserAgent.ToString(),
             CreatedAt = DateTime.UtcNow
         };
 

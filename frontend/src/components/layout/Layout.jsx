@@ -23,6 +23,7 @@ import {
   Moon,
   Keyboard,
   Activity,
+  Sparkles,
 } from 'lucide-react'
 import useAuthStore from '../../store/authStore'
 import useThemeStore from '../../store/themeStore'
@@ -50,6 +51,7 @@ const adminNavItems = [
   { to: '/vlereisimet', labelKey: 'reviews', icon: Star },
   { to: '/audit-logs', labelKey: 'auditLogs', icon: Activity },
   { to: '/calendar', labelKey: 'calendar', icon: CalendarDays },
+  { to: '/advanced', labelKey: 'Advanced', icon: Sparkles },
 ]
 
 const clientNavItems = [
@@ -302,4 +304,3 @@ export default function Layout() {
     </div>
   )
 }
-

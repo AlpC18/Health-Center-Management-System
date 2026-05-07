@@ -176,3 +176,25 @@ public record DashboardStatsDto(
     int TerapistetAktiv,
     int ProductetNeStok,
     double NotaMesatare);
+
+public record TimeSlotDto(DateTime Date, TimeSpan Start, TimeSpan End, bool Available);
+public record CancelTerminDto(string Reason);
+public record WaitingListCreateDto(int KlientId, int SherbimId, int? TerapistId, DateTime PreferredDate);
+public record PaymentStatusUpdateDto(string PaymentStatus);
+public record PaymentSimulationDto(int ShitjeId, string PaymentMethod, decimal Amount);
+public record PackageServiceDto(int SherbimId, int SeancaPerfshire);
+public record PackageServicesUpdateDto(List<PackageServiceDto> Services);
+public record ReviewModerationDto(string ModerationStatus);
+
+public record AdvancedReportsDto(
+    decimal Revenue,
+    string TopProduct,
+    string MostPopularService,
+    string TopTherapist,
+    int LowStockCount,
+    int ExpiringMemberships);
+
+public record TherapistPerformanceDto(int TerapistId, string TerapistEmri, int Appointments, decimal Revenue, double AverageRating);
+public record ClientRetentionDto(int TotalClients, int ReturningClients, int InactiveClients, double RenewalRate);
+public record RecommendationDto(int SherbimId, string EmriSherbimit, string Reason);
+public record NotificationCreateDto(string Type, string Title, string Message, string? UserId);

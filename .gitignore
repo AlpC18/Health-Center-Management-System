@@ -1,10 +1,14 @@
 node_modules/
+.npm-cache/
 dist/
 bin/
 obj/
 *.db
 *.db-shm
 *.db-wal
+*.pid
+*.log
+backend_log.txt
 appsettings.Development.json
 .env
 .env.local

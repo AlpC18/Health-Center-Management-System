@@ -10,6 +10,9 @@ public class Klient
     public DateTime? DataLindjes { get; set; }
     public string? Gjinia { get; set; }
     public string? KushtetShendetesore { get; set; }
+    public string? Alergjite { get; set; }
+    public string? ShenimeMjekesore { get; set; }
+    public bool IsDeleted { get; set; }
     public DateTime DataRegjistrimit { get; set; } = DateTime.UtcNow;
 
     public ICollection<Termin> Terminet { get; set; } = new List<Termin>();
@@ -28,9 +31,11 @@ public class Sherbim
     public int KohezgjatjaMin { get; set; }
     public decimal Cmimi { get; set; }
     public bool Aktiv { get; set; } = true;
+    public bool IsDeleted { get; set; }
 
     public ICollection<Termin> Terminet { get; set; } = new List<Termin>();
     public ICollection<Vleresim> Vlereisimet { get; set; } = new List<Vleresim>();
+    public ICollection<PaketaSherbim> PaketaSherbimet { get; set; } = new List<PaketaSherbim>();
 }
 
 public class Terapist
@@ -43,9 +48,13 @@ public class Terapist
     public string Email { get; set; } = string.Empty;
     public string? Telefoni { get; set; }
     public bool Aktiv { get; set; } = true;
+    public TimeSpan OrariFillimit { get; set; } = new(9, 0, 0);
+    public TimeSpan OrariMbarimit { get; set; } = new(17, 0, 0);
+    public bool IsDeleted { get; set; }
 
     public ICollection<Termin> Terminet { get; set; } = new List<Termin>();
     public ICollection<Vleresim> Vlereisimet { get; set; } = new List<Vleresim>();
+    public ICollection<TerapistAvailability> Availability { get; set; } = new List<TerapistAvailability>();
 }
 
 public class Termin
@@ -59,10 +68,14 @@ public class Termin
     public TimeSpan OraMbarimit { get; set; }
     public string Statusi { get; set; } = "Planifikuar";
     public string? Shenimet { get; set; }
+    public string? ArsyeAnulimi { get; set; }
+    public bool IsRecurring { get; set; }
+    public string? RecurrenceRule { get; set; }
 
     public Klient Klienti { get; set; } = null!;
     public Sherbim Sherbimi { get; set; } = null!;
     public Terapist Terapisti { get; set; } = null!;
+    public ICollection<TerminStatusHistory> StatusHistory { get; set; } = new List<TerminStatusHistory>();
 }
 
 public class PaketaWellness
@@ -74,8 +87,10 @@ public class PaketaWellness
     public decimal Cmimi { get; set; }
     public int KohezgjatjaMuaj { get; set; }
     public bool Aktive { get; set; } = true;
+    public bool IsDeleted { get; set; }
 
     public ICollection<Anetaresim> Anetaresimet { get; set; } = new List<Anetaresim>();
+    public ICollection<PaketaSherbim> PaketaSherbimet { get; set; } = new List<PaketaSherbim>();
 }
 
 public class Anetaresim
@@ -87,6 +102,7 @@ public class Anetaresim
     public DateTime DataMbarimit { get; set; }
     public string Statusi { get; set; } = "Aktiv";
     public decimal CmimiPaguar { get; set; }
+    public bool ExpiryReminderSent { get; set; }
 
     public Klient Klienti { get; set; } = null!;
     public PaketaWellness Paketa { get; set; } = null!;
@@ -127,7 +143,9 @@ public class Produkt
     public string? Pershkrimi { get; set; }
     public decimal Cmimi { get; set; }
     public int SasiaStok { get; set; }
+    public int MinimumStock { get; set; } = 5;
     public bool Aktiv { get; set; } = true;
+    public bool IsDeleted { get; set; }
 
     public ICollection<ShitjeProdukteve> Shitjet { get; set; } = new List<ShitjeProdukteve>();
 }
@@ -140,6 +158,8 @@ public class ShitjeProdukteve
     public int Sasia { get; set; }
     public decimal CmimiTotal { get; set; }
     public DateTime DataShitjes { get; set; } = DateTime.UtcNow;
+    public string PaymentMethod { get; set; } = "Cash";
+    public string PaymentStatus { get; set; } = "Paid";
 
     public Klient Klienti { get; set; } = null!;
     public Produkt Produkti { get; set; } = null!;
@@ -153,9 +173,105 @@ public class Vleresim
     public int TerapistId { get; set; }
     public int Nota { get; set; }
     public string? Komenti { get; set; }
+    public string ModerationStatus { get; set; } = "Pending";
     public DateTime DataVleresimit { get; set; } = DateTime.UtcNow;
 
     public Klient Klienti { get; set; } = null!;
     public Sherbim Sherbimi { get; set; } = null!;
     public Terapist Terapisti { get; set; } = null!;
+}
+
+public class PaketaSherbim
+{
+    public int PaketaSherbimId { get; set; }
+    public int PaketId { get; set; }
+    public int SherbimId { get; set; }
+    public int SeancaPerfshire { get; set; } = 1;
+
+    public PaketaWellness Paketa { get; set; } = null!;
+    public Sherbim Sherbimi { get; set; } = null!;
+}
+
+public class TerapistAvailability
+{
+    public int TerapistAvailabilityId { get; set; }
+    public int TerapistId { get; set; }
+    public DayOfWeek DitaJaves { get; set; }
+    public TimeSpan OraFillimit { get; set; }
+    public TimeSpan OraMbarimit { get; set; }
+    public bool Aktiv { get; set; } = true;
+
+    public Terapist Terapisti { get; set; } = null!;
+}
+
+public class TerminStatusHistory
+{
+    public int TerminStatusHistoryId { get; set; }
+    public int TerminId { get; set; }
+    public string StatusiNga { get; set; } = string.Empty;
+    public string StatusiNe { get; set; } = string.Empty;
+    public string? Arsyeja { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public string? CreatedBy { get; set; }
+
+    public Termin Termin { get; set; } = null!;
+}
+
+public class WaitingListEntry
+{
+    public int WaitingListEntryId { get; set; }
+    public int KlientId { get; set; }
+    public int SherbimId { get; set; }
+    public int? TerapistId { get; set; }
+    public DateTime PreferredDate { get; set; }
+    public string Statusi { get; set; } = "Waiting";
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    public Klient Klienti { get; set; } = null!;
+    public Sherbim Sherbimi { get; set; } = null!;
+    public Terapist? Terapisti { get; set; }
+}
+
+public class ClientDocument
+{
+    public int ClientDocumentId { get; set; }
+    public int KlientId { get; set; }
+    public string FileName { get; set; } = string.Empty;
+    public string ContentType { get; set; } = string.Empty;
+    public string StoragePath { get; set; } = string.Empty;
+    public DateTime UploadedAt { get; set; } = DateTime.UtcNow;
+
+    public Klient Klienti { get; set; } = null!;
+}
+
+public class Invoice
+{
+    public int InvoiceId { get; set; }
+    public int ShitjeId { get; set; }
+    public string InvoiceNumber { get; set; } = string.Empty;
+    public decimal Amount { get; set; }
+    public DateTime IssuedAt { get; set; } = DateTime.UtcNow;
+    public string Statusi { get; set; } = "Issued";
+
+    public ShitjeProdukteve Shitje { get; set; } = null!;
+}
+
+public class Notification
+{
+    public int NotificationId { get; set; }
+    public string Type { get; set; } = string.Empty;
+    public string Title { get; set; } = string.Empty;
+    public string Message { get; set; } = string.Empty;
+    public string? UserId { get; set; }
+    public bool IsRead { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+}
+
+public class BackupRecord
+{
+    public int BackupRecordId { get; set; }
+    public string FileName { get; set; } = string.Empty;
+    public string Statusi { get; set; } = "Created";
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public string? CreatedBy { get; set; }
 }
