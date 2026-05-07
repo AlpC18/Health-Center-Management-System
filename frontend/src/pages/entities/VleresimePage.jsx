@@ -21,9 +21,17 @@ export function VlereisiimetPage() {
           key: 'nota',
           label: 'Nota',
           render: (item) => (
-            <div className="flex items-center gap-1 text-yellow-500">
-              <span className="font-bold">{item.nota}</span>
-              <Star className="h-3 w-3 fill-current" />
+            <div className="flex items-center gap-0.5">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <Star
+                  key={i}
+                  className={`h-4 w-4 ${
+                    i <= item.nota
+                      ? 'text-yellow-400 fill-yellow-400'
+                      : 'text-gray-300 fill-gray-300'
+                  }`}
+                />
+              ))}
             </div>
           ),
         },

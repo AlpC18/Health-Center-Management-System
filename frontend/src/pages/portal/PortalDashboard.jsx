@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Calendar, CreditCard, TrendingUp, Clock } from 'lucide-react'
+import { Calendar, CreditCard, TrendingUp, Clock, Package } from 'lucide-react'
 import { portalApi } from '../../api/portalApi'
 import { PageLoader, StatusBadge } from '../../components/ui'
 import useAuthStore from '../../store/authStore'
@@ -47,24 +47,64 @@ export default function PortalDashboard() {
         ))}
       </div>
 
-      {stats?.terminIArdhshem && (
-        <div className="card p-5 mb-6 border-l-4 border-green-500">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        {/* Latest Appointment Card */}
+        <div className="card p-5 border-l-4 border-green-500">
           <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
             <Clock className="w-4 h-4 text-green-600" />
             Termini i Ardhshëm
           </h3>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-semibold text-gray-900">{stats.terminIArdhshem.sherbimEmri}</p>
-              <p className="text-sm text-gray-500">Terapist: {stats.terminIArdhshem.terapistEmri}</p>
-              <p className="text-sm text-gray-500">
-                {fmtDate(stats.terminIArdhshem.dataTerminit)} • {fmtTime(stats.terminIArdhshem.oraFillimit)} - {fmtTime(stats.terminIArdhshem.oraMbarimit)}
-              </p>
+          {stats?.terminIArdhshem ? (
+            <div className="flex items-start justify-between gap-2">
+              <div className="space-y-1">
+                <p className="font-semibold text-gray-900">{stats.terminIArdhshem.sherbimEmri}</p>
+                <p className="text-sm text-gray-500">Terapist: {stats.terminIArdhshem.terapistEmri}</p>
+                <p className="text-sm text-gray-500">
+                  {fmtDate(stats.terminIArdhshem.dataTerminit)}
+                  {' · '}
+                  {fmtTime(stats.terminIArdhshem.oraFillimit)} – {fmtTime(stats.terminIArdhshem.oraMbarimit)}
+                </p>
+              </div>
+              <StatusBadge status={stats.terminIArdhshem.statusi} />
             </div>
-            <StatusBadge status={stats.terminIArdhshem.statusi} />
-          </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-4 text-center">
+              <Calendar className="w-8 h-8 text-gray-300 mb-2" />
+              <p className="text-sm text-gray-400">Nuk keni termin të ardhshëm</p>
+              <a href="/portal/rezervo" className="mt-2 text-xs font-semibold text-green-600 hover:underline">
+                Rezervo tani →
+              </a>
+            </div>
+          )}
         </div>
-      )}
+
+        {/* Active Package Card */}
+        <div className="card p-5 border-l-4 border-purple-500">
+          <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <Package className="w-4 h-4 text-purple-600" />
+            Paketa Aktive
+          </h3>
+          {stats?.paketaAktive ? (
+            <div className="space-y-1">
+              <p className="font-semibold text-gray-900">{stats.paketaAktive.emriPaketes}</p>
+              <p className="text-sm text-gray-500">
+                Skadon më: <span className="font-medium text-gray-700">{fmtDate(stats.paketaAktive.dataSkadimit)}</span>
+              </p>
+              <span className="inline-block mt-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-purple-100 text-purple-700 border border-purple-200">
+                Aktive
+              </span>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-4 text-center">
+              <Package className="w-8 h-8 text-gray-300 mb-2" />
+              <p className="text-sm text-gray-400">Nuk keni paketë aktive</p>
+              <a href="/portal/anetaresimi" className="mt-2 text-xs font-semibold text-purple-600 hover:underline">
+                Shiko paketat →
+              </a>
+            </div>
+          )}
+        </div>
+      </div>
 
       <div className="card p-5">
         <h3 className="text-sm font-semibold text-gray-900 mb-4">Veprime të Shpejta</h3>
