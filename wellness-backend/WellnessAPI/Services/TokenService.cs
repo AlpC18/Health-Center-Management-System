@@ -122,7 +122,7 @@ public class TokenService
 
     public AuthResponseDto BuildAuthResponse(ApplicationUser user, string access, string rawRefreshToken, DateTime refreshExpiresAt, string role) =>
         new(access, rawRefreshToken, refreshExpiresAt,
-            new UserInfoDto(user.Id, user.Email ?? "", user.FirstName, user.LastName, role));
+            new UserInfoDto(user.Id, user.Email ?? "", user.FirstName, user.LastName, role, user.PhoneNumber, user.Adresa));
 
     private string HashRefreshToken(string rawToken)
     {

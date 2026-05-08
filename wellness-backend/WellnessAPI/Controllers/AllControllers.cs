@@ -29,10 +29,11 @@ public class SherbimetController : ControllerBase
     /// <param name="limit">Numri i elementeve për faqe.</param>
     /// <returns>Një listë shërbimesh dhe informacione për paginim.</returns>
     [HttpGet]
-    public async Task<ActionResult> GetAll([FromQuery] string? search, [FromQuery] int page = 1, [FromQuery] int limit = 10)
+    public async Task<ActionResult> GetAll([FromQuery] string? search, [FromQuery] bool? aktiv, [FromQuery] int page = 1, [FromQuery] int limit = 10)
     {
         var q = _db.Sherbimet.AsNoTracking().AsQueryable();
         if (!string.IsNullOrEmpty(search)) q = q.Where(s => s.EmriSherbimit.Contains(search!) || s.Kategoria!.Contains(search!));
+        if (aktiv.HasValue) q = q.Where(s => s.Aktiv == aktiv.Value);
         var total = await q.CountAsync();
         var data = await q.OrderBy(s => s.EmriSherbimit).Skip((page - 1) * limit).Take(limit)
             .Select(s => new SherbimResponseDto(s.SherbimId, s.EmriSherbimit, s.Kategoria, s.Pershkrimi, s.KohezgjatjaMin, s.Cmimi, s.Aktiv)).ToListAsync();
@@ -97,10 +98,11 @@ public class TerapistetController : ControllerBase
     public TerapistetController(ApplicationDbContext db, AuditService audit) { _db = db; _audit = audit; }
 
     [HttpGet]
-    public async Task<ActionResult> GetAll([FromQuery] string? search, [FromQuery] int page = 1, [FromQuery] int limit = 10)
+    public async Task<ActionResult> GetAll([FromQuery] string? search, [FromQuery] string? specializimi, [FromQuery] int page = 1, [FromQuery] int limit = 10)
     {
         var q = _db.Terapistet.AsNoTracking().AsQueryable();
         if (!string.IsNullOrEmpty(search)) q = q.Where(t => t.Emri.Contains(search!) || t.Mbiemri.Contains(search!) || t.Email.Contains(search!));
+        if (!string.IsNullOrEmpty(specializimi)) q = q.Where(t => t.Specializimi != null && t.Specializimi.Contains(specializimi));
         var total = await q.CountAsync();
         var data = await q.OrderBy(t => t.Mbiemri).Skip((page - 1) * limit).Take(limit)
             .Select(t => new TerapistResponseDto(t.TerapistId, t.Emri, t.Mbiemri, t.Specializimi, t.Licenca, t.Email, t.Telefoni, t.Aktiv)).ToListAsync();

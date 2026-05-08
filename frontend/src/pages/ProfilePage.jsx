@@ -1,23 +1,48 @@
 import { useState } from 'react'
-import { Lock, Eye, EyeOff, Check } from 'lucide-react'
+import { Lock, Eye, EyeOff, Check, User } from 'lucide-react'
 import useAuthStore from '../store/authStore'
 import api from '../api/api'
 import { Alert, Spinner } from '../components/ui'
 import toast from 'react-hot-toast'
 
 export default function ProfilePage() {
-  const { user } = useAuthStore()
+  const { user, setUser } = useAuthStore()
   const roles = Array.isArray(user?.roles) ? user.roles : []
   const isAdmin = user?.role === 'Admin' || roles.includes('Admin') || roles.includes('Staff')
-  const [pwForm, setPwForm] = useState({
-    current: '',
-    new: '',
-    confirm: '',
+
+  const [profileForm, setProfileForm] = useState({
+    telefoni: user?.telefoni ?? '',
+    adresa: user?.adresa ?? '',
   })
+  const [profileLoading, setProfileLoading] = useState(false)
+  const [profileError, setProfileError] = useState('')
+  const [profileSuccess, setProfileSuccess] = useState('')
+
+  const [pwForm, setPwForm] = useState({ current: '', new: '', confirm: '' })
   const [showPw, setShowPw] = useState({ current: false, new: false, confirm: false })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+
+  const handleProfileSave = async (e) => {
+    e.preventDefault()
+    setProfileError('')
+    setProfileSuccess('')
+    setProfileLoading(true)
+    try {
+      const res = await api.put('/auth/profile', {
+        telefoni: profileForm.telefoni || null,
+        adresa: profileForm.adresa || null,
+      })
+      if (typeof setUser === 'function') setUser(res.data?.user ?? res.data)
+      setProfileSuccess('Profili u përditësua me sukses!')
+      toast.success('Profili u ruajt!')
+    } catch (err) {
+      setProfileError(err.response?.data?.message ?? 'Gabim gjatë ruajtjes së profilit.')
+    } finally {
+      setProfileLoading(false)
+    }
+  }
 
   const handlePasswordChange = async (e) => {
     e.preventDefault()
@@ -106,6 +131,45 @@ export default function ProfilePage() {
         </div>
       </div>
 
+      {/* Editable contact info */}
+      <div className="card p-8">
+        <h3 className="text-lg font-bold text-health-primary mb-6 flex items-center gap-2 tracking-tight">
+          <User className="w-5 h-5 text-health-brand" /> Të Dhënat e Kontaktit
+        </h3>
+        <Alert type="error" message={profileError} />
+        <Alert type="success" message={profileSuccess} />
+        <form onSubmit={handleProfileSave} className="space-y-4 mt-4">
+          <div>
+            <label className="label">Numri i Telefonit</label>
+            <input
+              className="input"
+              type="tel"
+              placeholder="+383 44 000 000"
+              value={profileForm.telefoni}
+              onChange={(e) => setProfileForm({ ...profileForm, telefoni: e.target.value })}
+            />
+          </div>
+          <div>
+            <label className="label">Adresa</label>
+            <input
+              className="input"
+              type="text"
+              placeholder="Rruga, Qyteti"
+              value={profileForm.adresa}
+              onChange={(e) => setProfileForm({ ...profileForm, adresa: e.target.value })}
+            />
+          </div>
+          <button
+            type="submit"
+            className="btn-primary w-full sm:w-auto flex items-center justify-center gap-3 px-8 py-3 shadow-lg shadow-health-brand/20"
+            disabled={profileLoading}
+          >
+            {profileLoading ? <Spinner size="sm" /> : <Check className="w-5 h-5" />}
+            Ruaj Ndryshimet
+          </button>
+        </form>
+      </div>
+
       {/* Change password */}
       <div className="card p-8">
         <h3 className="text-lg font-bold text-health-primary mb-6 flex items-center gap-2 tracking-tight">
@@ -131,7 +195,7 @@ export default function ProfilePage() {
             Veri Yedekleme (Backup)
           </h3>
           <p className="text-sm text-health-secondary mb-6 leading-relaxed">Sistemdeki tüm verileri SQLite formatında yedeğini indirir.</p>
-          <button 
+          <button
             onClick={() => window.open('http://localhost:5077/api/backup/database', '_blank')}
             className="btn-secondary flex items-center gap-3 px-8 py-3 border-health-brand/40 text-health-brand hover:bg-health-brand hover:text-white transition-all shadow-lg shadow-health-brand/10 group"
           >

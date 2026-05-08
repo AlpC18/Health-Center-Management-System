@@ -57,6 +57,13 @@ function KlientRoute({ children }) {
   return <PortalLayout>{children}</PortalLayout>
 }
 
+function AdminRoute() {
+  const { accessToken, user } = useAuthStore()
+  if (!accessToken) return <Navigate to="/login" replace />
+  if (user?.role !== 'Admin') return <Navigate to="/dashboard" replace />
+  return <Outlet />
+}
+
 function GuestRoute() {
   const { accessToken, user } = useAuthStore()
   const roles = Array.isArray(user?.roles) ? user.roles : []
@@ -112,7 +119,9 @@ export default function App() {
             <Route path="/produktet" element={<ProduktetPage />} />
             <Route path="/shitjet" element={<ShitjetPage />} />
             <Route path="/vlereisimet" element={<VlereisiimetPage />} />
-            <Route path="/audit-logs" element={<AuditLogsPage />} />
+            <Route element={<AdminRoute />}>
+              <Route path="/audit-logs" element={<AuditLogsPage />} />
+            </Route>
             <Route path="/calendar" element={<CalendarPage />} />
             <Route path="/advanced" element={<AdvancedFeaturesPage />} />
             <Route path="/profile" element={<ProfilePage />} />

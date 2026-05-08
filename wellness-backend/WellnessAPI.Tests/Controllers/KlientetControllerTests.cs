@@ -275,4 +275,105 @@ public class KlientetControllerTests : IClassFixture<CustomWebApplicationFactory
         var response = await _client.GetAsync($"/api/klientet/{id}");
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
+
+    // ── Pagination ────────────────────────────────────────────────────────────
+    // These tests use the actual response format: { data: [...], total: N, page: N, limit: N }
+    // Admin credentials match the seed: admin@wellness.com / Admin123!
+
+    private async Task SetSeedAdminAuthHeader()
+    {
+        var (_, doc) = await Post("/api/auth/login", new { Email = "admin@wellness.com", Password = "Admin123!" });
+        var token = doc.GetProperty("accessToken").GetString()
+            ?? doc.TryGetProperty("data", out var d) ? d.GetProperty("accessToken").GetString()! : "";
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token!);
+    }
+
+    [Fact]
+    public async Task GetAll_Pagination_LimitIsRespected()
+    {
+        await SetSeedAdminAuthHeader();
+        var response = await _client.GetAsync("/api/klientet?page=1&limit=3");
+        var body = await response.Content.ReadAsStringAsync();
+        var doc = ParseBody(body);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var data = doc.GetProperty("data");
+        Assert.True(data.GetArrayLength() <= 3, "data array should have at most 3 items");
+        Assert.Equal(1, doc.GetProperty("page").GetInt32());
+        Assert.Equal(3, doc.GetProperty("limit").GetInt32());
+    }
+
+    [Fact]
+    public async Task GetAll_Pagination_TotalIsPositive()
+    {
+        await SetSeedAdminAuthHeader();
+        var response = await _client.GetAsync("/api/klientet");
+        var body = await response.Content.ReadAsStringAsync();
+        var doc = ParseBody(body);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.True(doc.GetProperty("total").GetInt32() > 0, "total should be > 0 (seed data exists)");
+    }
+
+    [Fact]
+    public async Task GetAll_Pagination_PageAndLimitReflectedInResponse()
+    {
+        await SetSeedAdminAuthHeader();
+        var response = await _client.GetAsync("/api/klientet?page=2&limit=4");
+        var body = await response.Content.ReadAsStringAsync();
+        var doc = ParseBody(body);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(2, doc.GetProperty("page").GetInt32());
+        Assert.Equal(4, doc.GetProperty("limit").GetInt32());
+    }
+
+    [Fact]
+    public async Task GetAll_Pagination_BeyondLastPage_ReturnsEmptyData()
+    {
+        await SetSeedAdminAuthHeader();
+
+        // Get total first
+        var firstResp = await _client.GetAsync("/api/klientet?page=1&limit=1000");
+        var firstBody = await firstResp.Content.ReadAsStringAsync();
+        var firstDoc = ParseBody(firstBody);
+        var total = firstDoc.GetProperty("total").GetInt32();
+
+        // Request a page far beyond available data
+        var response = await _client.GetAsync($"/api/klientet?page=9999&limit=10");
+        var body = await response.Content.ReadAsStringAsync();
+        var doc = ParseBody(body);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(0, doc.GetProperty("data").GetArrayLength());
+        Assert.Equal(total, doc.GetProperty("total").GetInt32());
+    }
+
+    [Fact]
+    public async Task GetAll_Pagination_Page2DifferentFromPage1()
+    {
+        await SetSeedAdminAuthHeader();
+
+        // Seed has 15 clients, so pages 1 and 2 with limit=5 should return different items
+        var resp1 = await _client.GetAsync("/api/klientet?page=1&limit=5");
+        var resp2 = await _client.GetAsync("/api/klientet?page=2&limit=5");
+
+        var doc1 = ParseBody(await resp1.Content.ReadAsStringAsync());
+        var doc2 = ParseBody(await resp2.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, resp1.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, resp2.StatusCode);
+
+        // Both pages should have items (seed has 15 clients)
+        var page1Count = doc1.GetProperty("data").GetArrayLength();
+        var page2Count = doc2.GetProperty("data").GetArrayLength();
+        Assert.True(page1Count > 0, "page 1 should have items");
+        Assert.True(page2Count > 0, "page 2 should have items");
+
+        // Total must be consistent across pages
+        Assert.Equal(
+            doc1.GetProperty("total").GetInt32(),
+            doc2.GetProperty("total").GetInt32());
+    }
 }

@@ -30,17 +30,21 @@ This is a Monorepo containing both the backend API and the frontend client.
 
 ```
 Health-Center-Management-System/
-├── backend/
-│   └── WellnessAPI/
-│       ├── Controllers/      # API Endpoints
-│       ├── Models/           # Domain Entities & Identity
-│       └── Program.cs        # Middleware setup
+├── wellness-backend/
+│   ├── WellnessAPI/              # Active ASP.NET Core 8 API
+│   │   ├── Controllers/          # API Endpoints
+│   │   ├── Models/               # Domain Entities & Identity
+│   │   ├── Data/                 # DbContext & Seed Data
+│   │   ├── Services/             # Business logic services
+│   │   ├── Migrations/           # EF Core database migrations
+│   │   └── Program.cs            # App startup & middleware
+│   └── WellnessAPI.Tests/        # xUnit integration test project
 └── frontend/
     ├── src/
-    │   ├── components/       # UI, Layouts
-    │   ├── pages/            # Admin & Client views
-    │   └── store/            # Zustand state machines
-    └── package.json          # React Dependencies
+    │   ├── components/           # UI components & Layouts
+    │   ├── pages/                # Admin dashboard & Client portal views
+    │   └── store/                # Zustand state management
+    └── package.json              # React dependencies
 ```
 
 ---
@@ -63,7 +67,7 @@ Open your terminal and follow these steps **(Terminal 1)**:
 
 **Step 1: Navigate to the backend directory**
 ```bash
-cd backend/WellnessAPI
+cd wellness-backend/WellnessAPI
 ```
 *This places you in the root API folder where the `WellnessAPI.csproj` project file is located.*
 
@@ -130,7 +134,7 @@ By default, the application seeds test data in the database, including admin and
 
 ### Client Portal (Patient Dashboard)
 1. You can access the client-side system by either creating a new account on the register page (`http://localhost:5173/register`) choosing the **Klient** role, OR logging into the seeded client:
-   - **Email:** `client1@wellness.com`
+   - **Email:** `client@wellness.com`
    - **Password:** `Client123!`
 2. After logging in as a Client, you will be guided to the **Client Portal** (`/portal/dashboard`).
 3. Here, you can **Book an Appointment**, track past appointments, and view memberships.
@@ -168,10 +172,26 @@ You can now securely call any endpoint! For example:
 
 ---
 
+---
+
+## 🧪 Running the Tests
+
+The project includes an integration test suite in `wellness-backend/WellnessAPI.Tests/`.
+
+Open a terminal and run:
+
+```bash
+cd wellness-backend
+dotnet test
+```
+
+*What it does: Builds both projects, spins up an in-memory test server, runs all xUnit tests, and reports pass/fail results.*
+
+---
+
 ## ✍️ Built With
 - **C# .NET 8**
 - **Entity Framework Core**
-- **React 18**
-- **Vite**
+- **React 19 + Vite**
 - **Tailwind CSS**
 - **Zustand**

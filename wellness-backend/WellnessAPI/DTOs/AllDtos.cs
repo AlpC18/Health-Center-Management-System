@@ -12,9 +12,10 @@ public record RegisterDto(
 );
 public record LoginDto(string Email, string Password);
 public record AuthResponseDto(string AccessToken, string RefreshToken, DateTime ExpiresAt, UserInfoDto User);
-public record UserInfoDto(string Id, string Email, string FirstName, string LastName, string Role);
+public record UserInfoDto(string Id, string Email, string FirstName, string LastName, string Role, string? Telefoni = null, string? Adresa = null);
 public record RefreshTokenRequestDto(string RefreshToken);
 public record ChangePasswordDto(string CurrentPassword, string NewPassword);
+public record UpdateProfileDto(string? Telefoni, string? Adresa);
 public record ForgotPasswordDto(string Email);
 public record ResetPasswordDto(string Token, string NewPassword, string ConfirmPassword);
 

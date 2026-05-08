@@ -48,6 +48,11 @@ public static class SeedData
             new() { Emri="Drita", Mbiemri="Berisha", Specializimi="Fizioterapi", Licenca="LIC-2023-003", Email="drita.b@wellness.com", Telefoni="+383 44 555 666", Aktiv=true },
             new() { Emri="Fitim", Mbiemri="Gashi", Specializimi="Nutricion", Licenca="LIC-2023-004", Email="fitim.g@wellness.com", Telefoni="+383 44 777 888", Aktiv=true },
             new() { Emri="Lirie", Mbiemri="Morina", Specializimi="Spa & Beauty", Licenca="LIC-2023-005", Email="lirie.m@wellness.com", Telefoni="+383 44 999 000", Aktiv=true },
+            new() { Emri="Rron", Mbiemri="Rexha", Specializimi="Akupunkturë", Licenca="LIC-2024-006", Email="rron.r@wellness.com", Telefoni="+383 45 111 001", Aktiv=true },
+            new() { Emri="Valentina", Mbiemri="Gjonaj", Specializimi="Masazh Sportiv", Licenca="LIC-2024-007", Email="valentina.g@wellness.com", Telefoni="+383 45 111 002", Aktiv=true },
+            new() { Emri="Luan", Mbiemri="Beka", Specializimi="Terapia Manuale", Licenca="LIC-2024-008", Email="luan.b@wellness.com", Telefoni="+383 45 111 003", Aktiv=true },
+            new() { Emri="Ardita", Mbiemri="Selimi", Specializimi="Reiki & Energji", Licenca="LIC-2024-009", Email="ardita.s@wellness.com", Telefoni="+383 45 111 004", Aktiv=true },
+            new() { Emri="Kujtim", Mbiemri="Peci", Specializimi="Fizioterapi Pediatrike", Licenca="LIC-2024-010", Email="kujtim.p@wellness.com", Telefoni="+383 45 111 005", Aktiv=true },
         };
         db.Terapistet.AddRange(terapistet);
 
@@ -62,6 +67,11 @@ public static class SeedData
             new() { EmriSherbimit="Fizioterapi", Kategoria="Fizioterapi", Pershkrimi="Seancë fizioterapie", KohezgjatjaMin=45, Cmimi=40, Aktiv=true },
             new() { EmriSherbimit="Konsultë Nutricion", Kategoria="Nutricion", Pershkrimi="Konsultë dietë", KohezgjatjaMin=30, Cmimi=30, Aktiv=true },
             new() { EmriSherbimit="Meditim i Drejtuar", Kategoria="Meditim", Pershkrimi="Seancë meditimi", KohezgjatjaMin=45, Cmimi=15, Aktiv=true },
+            new() { EmriSherbimit="Akupunkturë", Kategoria="Akupunkturë", Pershkrimi="Trajtim me gjilpëra terapeutike", KohezgjatjaMin=60, Cmimi=45, Aktiv=true },
+            new() { EmriSherbimit="Masazh Sportiv", Kategoria="Masazh", Pershkrimi="Masazh për atletë dhe sportistë", KohezgjatjaMin=75, Cmimi=55, Aktiv=true },
+            new() { EmriSherbimit="Terapia me Nxehtësi", Kategoria="Spa", Pershkrimi="Trajtim me guri të nxehtë", KohezgjatjaMin=45, Cmimi=35, Aktiv=true },
+            new() { EmriSherbimit="Masazh Fytyre", Kategoria="Spa", Pershkrimi="Trajtim relaksues i fytyrës", KohezgjatjaMin=30, Cmimi=25, Aktiv=true },
+            new() { EmriSherbimit="Pilates", Kategoria="Fitness", Pershkrimi="Klasa pilates për të gjitha nivelet", KohezgjatjaMin=60, Cmimi=20, Aktiv=true },
         };
         db.Sherbimet.AddRange(sherbimet);
 

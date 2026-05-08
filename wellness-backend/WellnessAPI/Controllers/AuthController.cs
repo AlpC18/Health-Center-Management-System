@@ -183,6 +183,27 @@ public class AuthController : ControllerBase
     }
 
 
+    [HttpPut("profile")]
+    [Authorize]
+    public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileDto dto)
+    {
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? User.FindFirst("sub")?.Value;
+        var user = await _userManager.FindByIdAsync(userId!);
+        if (user is null) return Unauthorized();
+
+        user.PhoneNumber = dto.Telefoni;
+        user.Adresa = dto.Adresa;
+        await _userManager.UpdateAsync(user);
+
+        var roles = await _userManager.GetRolesAsync(user);
+        var role = roles.FirstOrDefault() ?? "Klient";
+        var access = await _tokenService.GenerateAccessTokenAsync(user);
+        var refresh = await _tokenService.GenerateRefreshTokenAsync(user, HttpContext.Connection.RemoteIpAddress?.ToString());
+        WriteRefreshCookie(refresh.RawToken, refresh.StoredToken.ExpiresAt);
+
+        return Ok(_tokenService.BuildAuthResponse(user, access, refresh.RawToken, refresh.StoredToken.ExpiresAt, role));
+    }
+
     [HttpPost("forgot-password")]
     public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordDto dto)
     {

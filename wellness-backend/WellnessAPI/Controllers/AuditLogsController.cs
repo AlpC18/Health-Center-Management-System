@@ -6,7 +6,7 @@ using WellnessAPI.Data;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]
+[Authorize(Roles = "Admin")]
 public class AuditLogsController : ControllerBase
 {
     private readonly ApplicationDbContext _db;
