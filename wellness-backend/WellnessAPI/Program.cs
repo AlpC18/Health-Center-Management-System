@@ -17,7 +17,10 @@ var builder = WebApplication.CreateBuilder(args);
 
 // 1. DB
 builder.Services.AddDbContext<ApplicationDbContext>(o =>
-    o.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
+{
+    o.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection"));
+    o.ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
+});
 
 // 2. Identity
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>(o => {
@@ -120,6 +123,16 @@ using (var scope = app.Services.CreateScope())
     var rm = sp.GetRequiredService<RoleManager<IdentityRole>>();
 
     db.Database.Migrate();
+
+    // Defensive schema patch: the AddAdressaToUser migration in this repo
+    // was committed without the EF Designer partial, so EF skips it.
+    // We ensure the column exists here so seeding and Identity queries work.
+    try
+    {
+        db.Database.ExecuteSqlRaw("ALTER TABLE \"AspNetUsers\" ADD COLUMN \"Adresa\" TEXT NULL");
+    }
+    catch (Microsoft.Data.Sqlite.SqliteException) { /* column already exists */ }
+
     SeedData.SeedAsync(db, um, rm).Wait();
 }
 
