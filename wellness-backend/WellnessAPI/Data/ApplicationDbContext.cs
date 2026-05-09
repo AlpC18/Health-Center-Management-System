@@ -25,6 +25,13 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<Vleresim> Vlereisimet => Set<Vleresim>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
+    // Additional CRUD entities
+    public DbSet<Salla> Sallat => Set<Salla>();
+    public DbSet<Furnizuesi> Furnizuesit => Set<Furnizuesi>();
+    public DbSet<Lajmerimi> Lajmerimet => Set<Lajmerimi>();
+    public DbSet<Zbritja> Zbritjet => Set<Zbritja>();
+    public DbSet<Pushimi> Pushimet => Set<Pushimi>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -136,6 +143,38 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             e.Property(a => a.Entity).IsRequired().HasMaxLength(100);
             e.HasIndex(a => a.CreatedAt);
             e.HasIndex(a => a.UserId);
+        });
+
+        builder.Entity<Salla>(e => {
+            e.HasKey(s => s.SallaId);
+            e.Property(s => s.Emri).IsRequired().HasMaxLength(150);
+            e.HasIndex(s => s.Emri).IsUnique();
+        });
+
+        builder.Entity<Furnizuesi>(e => {
+            e.HasKey(f => f.FurnizuesId);
+            e.Property(f => f.Emri).IsRequired().HasMaxLength(200);
+            e.HasIndex(f => f.Emri);
+        });
+
+        builder.Entity<Lajmerimi>(e => {
+            e.HasKey(l => l.LajmerimId);
+            e.Property(l => l.Titulli).IsRequired().HasMaxLength(250);
+            e.Property(l => l.Permbajtja).IsRequired();
+            e.HasIndex(l => l.DataKrijimit);
+        });
+
+        builder.Entity<Zbritja>(e => {
+            e.HasKey(z => z.ZbritjeId);
+            e.Property(z => z.Kodi).IsRequired().HasMaxLength(50);
+            e.Property(z => z.PerqindjaZbritjes).HasColumnType("decimal(5,2)");
+            e.HasIndex(z => z.Kodi).IsUnique();
+        });
+
+        builder.Entity<Pushimi>(e => {
+            e.HasKey(p => p.PushimId);
+            e.HasIndex(p => p.TerapistId);
+            e.HasIndex(p => p.Statusi);
         });
     }
 }

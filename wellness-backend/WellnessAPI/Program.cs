@@ -133,6 +133,70 @@ using (var scope = app.Services.CreateScope())
     }
     catch (Microsoft.Data.Sqlite.SqliteException) { /* column already exists */ }
 
+    // Bootstrap tables for the additional CRUD entities.
+    // Idempotent: CREATE TABLE IF NOT EXISTS won't touch existing tables.
+    var ddl = new[]
+    {
+        @"CREATE TABLE IF NOT EXISTS ""Sallat"" (
+            ""SallaId"" INTEGER NOT NULL CONSTRAINT ""PK_Sallat"" PRIMARY KEY AUTOINCREMENT,
+            ""Emri"" TEXT NOT NULL,
+            ""Kapaciteti"" INTEGER NOT NULL,
+            ""Tipi"" TEXT NULL,
+            ""Pershkrimi"" TEXT NULL,
+            ""Aktive"" INTEGER NOT NULL DEFAULT 1
+        );",
+        @"CREATE UNIQUE INDEX IF NOT EXISTS ""IX_Sallat_Emri"" ON ""Sallat"" (""Emri"");",
+
+        @"CREATE TABLE IF NOT EXISTS ""Furnizuesit"" (
+            ""FurnizuesId"" INTEGER NOT NULL CONSTRAINT ""PK_Furnizuesit"" PRIMARY KEY AUTOINCREMENT,
+            ""Emri"" TEXT NOT NULL,
+            ""KontaktPersona"" TEXT NULL,
+            ""Email"" TEXT NULL,
+            ""Telefoni"" TEXT NULL,
+            ""Adresa"" TEXT NULL,
+            ""Aktiv"" INTEGER NOT NULL DEFAULT 1,
+            ""DataRegjistrimit"" TEXT NOT NULL
+        );",
+        @"CREATE INDEX IF NOT EXISTS ""IX_Furnizuesit_Emri"" ON ""Furnizuesit"" (""Emri"");",
+
+        @"CREATE TABLE IF NOT EXISTS ""Lajmerimet"" (
+            ""LajmerimId"" INTEGER NOT NULL CONSTRAINT ""PK_Lajmerimet"" PRIMARY KEY AUTOINCREMENT,
+            ""Titulli"" TEXT NOT NULL,
+            ""Permbajtja"" TEXT NOT NULL,
+            ""Audienca"" TEXT NOT NULL DEFAULT 'All',
+            ""Prioriteti"" TEXT NOT NULL DEFAULT 'Mesem',
+            ""DataKrijimit"" TEXT NOT NULL,
+            ""DataSkadimit"" TEXT NULL,
+            ""Aktiv"" INTEGER NOT NULL DEFAULT 1
+        );",
+        @"CREATE INDEX IF NOT EXISTS ""IX_Lajmerimet_DataKrijimit"" ON ""Lajmerimet"" (""DataKrijimit"");",
+
+        @"CREATE TABLE IF NOT EXISTS ""Zbritjet"" (
+            ""ZbritjeId"" INTEGER NOT NULL CONSTRAINT ""PK_Zbritjet"" PRIMARY KEY AUTOINCREMENT,
+            ""Kodi"" TEXT NOT NULL,
+            ""PerqindjaZbritjes"" decimal(5,2) NOT NULL,
+            ""DataFillimit"" TEXT NOT NULL,
+            ""DataMbarimit"" TEXT NOT NULL,
+            ""LimitiPerdorimit"" INTEGER NOT NULL DEFAULT 100,
+            ""HereshShfrytezuar"" INTEGER NOT NULL DEFAULT 0,
+            ""Aktive"" INTEGER NOT NULL DEFAULT 1
+        );",
+        @"CREATE UNIQUE INDEX IF NOT EXISTS ""IX_Zbritjet_Kodi"" ON ""Zbritjet"" (""Kodi"");",
+
+        @"CREATE TABLE IF NOT EXISTS ""Pushimet"" (
+            ""PushimId"" INTEGER NOT NULL CONSTRAINT ""PK_Pushimet"" PRIMARY KEY AUTOINCREMENT,
+            ""TerapistId"" INTEGER NOT NULL,
+            ""DataFillimit"" TEXT NOT NULL,
+            ""DataMbarimit"" TEXT NOT NULL,
+            ""Arsyeja"" TEXT NULL,
+            ""Statusi"" TEXT NOT NULL DEFAULT 'Kerkuar',
+            ""DataKerkimit"" TEXT NOT NULL
+        );",
+        @"CREATE INDEX IF NOT EXISTS ""IX_Pushimet_TerapistId"" ON ""Pushimet"" (""TerapistId"");",
+        @"CREATE INDEX IF NOT EXISTS ""IX_Pushimet_Statusi"" ON ""Pushimet"" (""Statusi"");",
+    };
+    foreach (var sql in ddl) db.Database.ExecuteSqlRaw(sql);
+
     SeedData.SeedAsync(db, um, rm).Wait();
 }
 
