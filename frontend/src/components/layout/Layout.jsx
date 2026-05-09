@@ -24,6 +24,11 @@ import {
   Keyboard,
   Activity,
   Sparkles,
+  Building2,
+  Truck,
+  Megaphone,
+  Tag,
+  CalendarOff,
 } from 'lucide-react'
 import useAuthStore from '../../store/authStore'
 import useThemeStore from '../../store/themeStore'
@@ -49,6 +54,11 @@ const adminNavItems = [
   { to: '/produktet', labelKey: 'products', icon: ShoppingBag },
   { to: '/shitjet', labelKey: 'sales', icon: ShoppingCart },
   { to: '/vlereisimet', labelKey: 'reviews', icon: Star },
+  { to: '/sallat', labelKey: 'Sallat', icon: Building2 },
+  { to: '/furnizuesit', labelKey: 'Furnizuesit', icon: Truck },
+  { to: '/lajmerimet', labelKey: 'Lajmërimet', icon: Megaphone },
+  { to: '/zbritjet', labelKey: 'Zbritjet', icon: Tag },
+  { to: '/pushimet', labelKey: 'Pushimet', icon: CalendarOff },
   { to: '/audit-logs', labelKey: 'auditLogs', icon: Activity },
   { to: '/calendar', labelKey: 'calendar', icon: CalendarDays },
   { to: '/advanced', labelKey: 'Advanced', icon: Sparkles },

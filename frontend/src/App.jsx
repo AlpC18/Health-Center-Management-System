@@ -23,6 +23,11 @@ const CalendarPage = lazy(() => import('./pages/CalendarPage'))
 const ClientPortalPage = lazy(() => import('./pages/ClientPortalPage'))
 const ProfilePage = lazy(() => import('./pages/ProfilePage'))
 const AuditLogsPage = lazy(() => import('./pages/entities').then((m) => ({ default: m.AuditLogsPage })))
+const SallatPage = lazy(() => import('./pages/entities').then((m) => ({ default: m.SallatPage })))
+const FurnizuesitPage = lazy(() => import('./pages/entities').then((m) => ({ default: m.FurnizuesitPage })))
+const LajmerimetPage = lazy(() => import('./pages/entities').then((m) => ({ default: m.LajmerimetPage })))
+const ZbritjetPage = lazy(() => import('./pages/entities').then((m) => ({ default: m.ZbritjetPage })))
+const PushimetPage = lazy(() => import('./pages/entities').then((m) => ({ default: m.PushimetPage })))
 const AdvancedFeaturesPage = lazy(() => import('./pages/AdvancedFeaturesPage'))
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'))
 const PortalDashboard = lazy(() => import('./pages/portal/PortalDashboard'))
@@ -119,6 +124,11 @@ export default function App() {
             <Route path="/produktet" element={<ProduktetPage />} />
             <Route path="/shitjet" element={<ShitjetPage />} />
             <Route path="/vlereisimet" element={<VlereisiimetPage />} />
+            <Route path="/sallat" element={<SallatPage />} />
+            <Route path="/furnizuesit" element={<FurnizuesitPage />} />
+            <Route path="/lajmerimet" element={<LajmerimetPage />} />
+            <Route path="/zbritjet" element={<ZbritjetPage />} />
+            <Route path="/pushimet" element={<PushimetPage />} />
             <Route element={<AdminRoute />}>
               <Route path="/audit-logs" element={<AuditLogsPage />} />
             </Route>
