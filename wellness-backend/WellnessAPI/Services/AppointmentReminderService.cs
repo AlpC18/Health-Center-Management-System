@@ -25,11 +25,12 @@ public class AppointmentReminderService : BackgroundService
             var emailService = scope.ServiceProvider.GetRequiredService<EmailService>();
 
             var tomorrow = DateTime.Today.AddDays(1);
+            var dayAfter = tomorrow.AddDays(1);
 
             var upcoming = await db.Terminet
                 .Include(t => t.Klienti)
                 .Include(t => t.Sherbimi)
-                .Where(t => t.DataTerminit.Date == tomorrow.Date && t.Statusi == "Konfirmuar")
+                .Where(t => t.DataTerminit >= tomorrow && t.DataTerminit < dayAfter && t.Statusi == "Konfirmuar")
                 .ToListAsync(stoppingToken);
 
             foreach (var termin in upcoming)

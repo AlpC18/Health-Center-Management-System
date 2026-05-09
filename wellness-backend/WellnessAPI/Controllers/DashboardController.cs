@@ -26,12 +26,15 @@ public class DashboardController : ControllerBase
     [HttpGet("stats")]
     public async Task<ActionResult<DashboardStatsDto>> GetStats()
     {
+        // SQLite cannot translate DateTime.Date / .Month / .Year on entity columns,
+        // so build explicit ranges and use straight comparisons.
         var today = DateTime.UtcNow.Date;
-        
-        // Summing logic needs to handle potential nulls
+        var tomorrow = today.AddDays(1);
+        var monthStart = new DateTime(today.Year, today.Month, 1);
+        var monthEnd = monthStart.AddMonths(1);
+
         var income = await _db.ShitjetProduktet
-            .Where(s => s.DataShitjes.Month == DateTime.UtcNow.Month 
-                     && s.DataShitjes.Year == DateTime.UtcNow.Year)
+            .Where(s => s.DataShitjes >= monthStart && s.DataShitjes < monthEnd)
             .Select(s => s.CmimiTotal)
             .ToListAsync();
         
@@ -42,7 +45,7 @@ public class DashboardController : ControllerBase
         return Ok(new DashboardStatsDto(
             TotalKlientet: await _db.Klientet.CountAsync(),
             TotalTerminet: await _db.Terminet.CountAsync(),
-            TerminetSot: await _db.Terminet.CountAsync(t => t.DataTerminit.Date == today),
+            TerminetSot: await _db.Terminet.CountAsync(t => t.DataTerminit >= today && t.DataTerminit < tomorrow),
             AnetaresimiAktiv: await _db.Anetaresimet.CountAsync(a => a.Statusi == "Aktiv"),
             TeDheratMujore: income.Sum(),
             TerapistetAktiv: await _db.Terapistet.CountAsync(t => t.Aktiv),
