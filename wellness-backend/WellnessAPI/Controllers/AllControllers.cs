@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using WellnessAPI.Data;
 using WellnessAPI.DTOs;
+using WellnessAPI.Hubs;
 using WellnessAPI.Models.Domain;
 using WellnessAPI.Services;
 
@@ -159,7 +161,8 @@ public class TerminetController : ControllerBase
 {
     private readonly ApplicationDbContext _db;
     private readonly AuditService _audit;
-    public TerminetController(ApplicationDbContext db, AuditService audit) { _db = db; _audit = audit; }
+    private readonly IHubContext<NotificationHub> _hub;
+    public TerminetController(ApplicationDbContext db, AuditService audit, IHubContext<NotificationHub> hub) { _db = db; _audit = audit; _hub = hub; }
 
     [HttpGet]
     public async Task<ActionResult> GetAll([FromQuery] string? status, [FromQuery] int page = 1, [FromQuery] int limit = 10)
@@ -199,6 +202,13 @@ public class TerminetController : ControllerBase
         _db.Terminet.Add(t);
         await _db.SaveChangesAsync();
         await _audit.LogAsync("CREATE", "Termin", t.TerminId.ToString(), null, dto);
+        await _hub.Clients.All.SendAsync(NotificationEvents.NewAppointment, new {
+            terminId = t.TerminId,
+            klientId = t.KlientId,
+            dataTerminit = t.DataTerminit,
+            statusi = t.Statusi,
+            message = "Termin i ri u shtua."
+        });
         return CreatedAtAction(nameof(GetById), new { id = t.TerminId }, t);
     }
 
@@ -500,7 +510,8 @@ public class ShitjetController : ControllerBase
 {
     private readonly ApplicationDbContext _db;
     private readonly AuditService _audit;
-    public ShitjetController(ApplicationDbContext db, AuditService audit) { _db = db; _audit = audit; }
+    private readonly IHubContext<NotificationHub> _hub;
+    public ShitjetController(ApplicationDbContext db, AuditService audit, IHubContext<NotificationHub> hub) { _db = db; _audit = audit; _hub = hub; }
 
     [HttpGet]
     public async Task<ActionResult> GetAll([FromQuery] int page = 1, [FromQuery] int limit = 10)
@@ -508,7 +519,7 @@ public class ShitjetController : ControllerBase
         var q = _db.ShitjetProduktet.Include(s => s.Klienti).Include(s => s.Produkti).AsNoTracking().AsQueryable();
         var total = await q.CountAsync();
         var data = await q.OrderByDescending(s => s.DataShitjes).Skip((page - 1) * limit).Take(limit)
-            .Select(s => new ShitjeResponseDto(s.ShitjeId, s.KlientId, s.Klienti.Emri + " " + s.Klienti.Mbiemri, s.ProduktId, s.Produkti.EmriProduktit, s.Sasia, s.CmimiTotal, s.DataShitjes)).ToListAsync();
+            .Select(s => new ShitjeResponseDto(s.ShitjeId, s.KlientId, s.Klienti.Emri + " " + s.Klienti.Mbiemri, s.ProduktId, s.Produkti.EmriProduktit, s.Sasia, s.CmimiTotal, s.DataShitjes, s.TipiPageses, s.StatusiPageses)).ToListAsync();
         return Ok(new { data, total, page, limit });
     }
 
@@ -517,17 +528,50 @@ public class ShitjetController : ControllerBase
     {
         var s = await _db.ShitjetProduktet.Include(x => x.Klienti).Include(x => x.Produkti).FirstOrDefaultAsync(x => x.ShitjeId == id);
         if (s == null) return NotFound();
-        return Ok(new ShitjeResponseDto(s.ShitjeId, s.KlientId, s.Klienti.Emri + " " + s.Klienti.Mbiemri, s.ProduktId, s.Produkti.EmriProduktit, s.Sasia, s.CmimiTotal, s.DataShitjes));
+        return Ok(new ShitjeResponseDto(s.ShitjeId, s.KlientId, s.Klienti.Emri + " " + s.Klienti.Mbiemri, s.ProduktId, s.Produkti.EmriProduktit, s.Sasia, s.CmimiTotal, s.DataShitjes, s.TipiPageses, s.StatusiPageses));
     }
 
     [HttpPost]
     public async Task<ActionResult> Create(ShitjeCreateDto dto)
     {
-        var s = new ShitjeProdukteve { KlientId = dto.KlientId, ProduktId = dto.ProduktId, Sasia = dto.Sasia, CmimiTotal = dto.CmimiTotal, DataShitjes = DateTime.UtcNow };
+        var produkt = await _db.Produktet.FindAsync(dto.ProduktId);
+        if (produkt == null) return NotFound(new { success = false, message = "Produkti nuk u gjet." });
+        if (produkt.SasiaStok < dto.Sasia)
+            return BadRequest(new { success = false, message = $"Stoku i pamjaftueshëm. Disponibël: {produkt.SasiaStok}" });
+
+        produkt.SasiaStok -= dto.Sasia;
+
+        var s = new ShitjeProdukteve { KlientId = dto.KlientId, ProduktId = dto.ProduktId, Sasia = dto.Sasia, CmimiTotal = dto.CmimiTotal, DataShitjes = DateTime.UtcNow, TipiPageses = dto.TipiPageses, StatusiPageses = dto.StatusiPageses };
         _db.ShitjetProduktet.Add(s);
         await _db.SaveChangesAsync();
         await _audit.LogAsync("CREATE", "Shitje", s.ShitjeId.ToString(), null, dto);
+
+        // Notify if stock dropped to low threshold
+        if (produkt.SasiaStok <= 10)
+        {
+            await _hub.Clients.All.SendAsync(NotificationEvents.LowStock, new {
+                produktId = produkt.ProduktId,
+                emriProduktit = produkt.EmriProduktit,
+                sasiaStok = produkt.SasiaStok,
+                message = $"Stok i ulët: {produkt.EmriProduktit} ({produkt.SasiaStok} mbetur)"
+            });
+        }
+
         return CreatedAtAction(nameof(GetById), new { id = s.ShitjeId }, s);
+    }
+
+    [HttpPatch("{id}/pagesa")]
+    public async Task<ActionResult> UpdatePaymentStatus(int id, UpdatePaymentStatusDto dto)
+    {
+        var s = await _db.ShitjetProduktet.FindAsync(id);
+        if (s == null) return NotFound();
+        var validStatuses = new[] { "Paguar", "Papaguar", "Kthyer" };
+        if (!validStatuses.Contains(dto.StatusiPageses))
+            return BadRequest(new { message = "Statusi i pagesës i pavlefshëm." });
+        s.StatusiPageses = dto.StatusiPageses;
+        await _db.SaveChangesAsync();
+        await _audit.LogAsync("UPDATE_PAYMENT", "Shitje", id.ToString(), null, dto);
+        return Ok(new { success = true, message = "Statusi u përditësua.", statusiPageses = s.StatusiPageses });
     }
 }
 
@@ -539,7 +583,8 @@ public class VlereisimetController : ControllerBase
 {
     private readonly ApplicationDbContext _db;
     private readonly AuditService _audit;
-    public VlereisimetController(ApplicationDbContext db, AuditService audit) { _db = db; _audit = audit; }
+    private readonly IHubContext<NotificationHub> _hub;
+    public VlereisimetController(ApplicationDbContext db, AuditService audit, IHubContext<NotificationHub> hub) { _db = db; _audit = audit; _hub = hub; }
 
     [HttpGet]
     public async Task<ActionResult> GetAll([FromQuery] int page = 1, [FromQuery] int limit = 10)
@@ -566,6 +611,12 @@ public class VlereisimetController : ControllerBase
         _db.Vlereisimet.Add(v);
         await _db.SaveChangesAsync();
         await _audit.LogAsync("CREATE", "Vleresim", v.VleresimId.ToString(), null, dto);
+        await _hub.Clients.All.SendAsync(NotificationEvents.NewReview, new {
+            vleresimId = v.VleresimId,
+            sherbimId = v.SherbimId,
+            nota = v.Nota,
+            message = $"Vlerësim i ri: {v.Nota}/5 yje"
+        });
         return CreatedAtAction(nameof(GetById), new { id = v.VleresimId }, v);
     }
 }

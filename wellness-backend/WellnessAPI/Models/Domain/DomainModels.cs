@@ -134,6 +134,8 @@ public class ShitjeProdukteve
     public int Sasia { get; set; }
     public decimal CmimiTotal { get; set; }
     public DateTime DataShitjes { get; set; } = DateTime.UtcNow;
+    public string TipiPageses { get; set; } = "Kesh";
+    public string StatusiPageses { get; set; } = "Paguar";
 }
 
 public class Vleresim

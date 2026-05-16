@@ -55,9 +55,10 @@ public record ProduktCreateDto(string EmriProduktit, string? Kategoria, string? 
 public record ProduktUpdateDto(string EmriProduktit, string? Kategoria, string? Pershkrimi, decimal Cmimi, int SasiaStok, bool Aktiv);
 public record ProduktResponseDto(int ProduktId, string EmriProduktit, string? Kategoria, string? Pershkrimi, decimal Cmimi, int SasiaStok, bool Aktiv);
 
-public record ShitjeCreateDto(int KlientId, int ProduktId, int Sasia, decimal CmimiTotal);
-public record ShitjeUpdateDto(int KlientId, int ProduktId, int Sasia, decimal CmimiTotal);
-public record ShitjeResponseDto(int ShitjeId, int KlientId, string KlientEmri, int ProduktId, string ProduktEmri, int Sasia, decimal CmimiTotal, DateTime DataShitjes);
+public record ShitjeCreateDto(int KlientId, int ProduktId, int Sasia, decimal CmimiTotal, string TipiPageses = "Kesh", string StatusiPageses = "Paguar");
+public record ShitjeUpdateDto(int KlientId, int ProduktId, int Sasia, decimal CmimiTotal, string TipiPageses = "Kesh", string StatusiPageses = "Paguar");
+public record ShitjeResponseDto(int ShitjeId, int KlientId, string KlientEmri, int ProduktId, string ProduktEmri, int Sasia, decimal CmimiTotal, DateTime DataShitjes, string TipiPageses, string StatusiPageses);
+public record UpdatePaymentStatusDto(string StatusiPageses);
 
 public record VleresimCreateDto(int KlientId, int SherbimId, int TerapistId, int Nota, string? Komenti);
 public record VleresimUpdateDto(int KlientId, int SherbimId, int TerapistId, int Nota, string? Komenti);

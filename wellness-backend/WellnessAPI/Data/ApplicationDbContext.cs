@@ -128,6 +128,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
              .HasForeignKey(v => v.SherbimId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(v => v.Terapisti).WithMany(t => t.Vlereisimet)
              .HasForeignKey(v => v.TerapistId).OnDelete(DeleteBehavior.Restrict);
+            e.HasIndex(v => new { v.KlientId, v.SherbimId }).IsUnique();
         });
 
         builder.Entity<AuditLog>(e => {

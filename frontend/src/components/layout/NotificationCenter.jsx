@@ -1,6 +1,22 @@
 import { useState, useRef, useEffect } from 'react'
-import { Bell, CheckCircle2, Trash2, Clock, Inbox } from 'lucide-react'
+import { Bell, CheckCircle2, Trash2, Clock, Inbox, Calendar, Star, AlertTriangle } from 'lucide-react'
 import useNotificationStore from '../../store/notificationStore'
+
+const typeIcon = (type) => {
+  switch (type) {
+    case 'appointment': return <Calendar className="w-4 h-4" />
+    case 'review': return <Star className="w-4 h-4" />
+    case 'warning': return <AlertTriangle className="w-4 h-4 text-orange-400" />
+    default: return <Bell className="w-4 h-4" />
+  }
+}
+
+const typeBg = (type, isRead) => {
+  if (type === 'warning') return 'bg-orange-500/20 text-orange-400'
+  if (type === 'review') return 'bg-yellow-500/20 text-yellow-400'
+  if (type === 'appointment') return 'bg-blue-500/20 text-blue-400'
+  return isRead ? 'bg-health-bg text-health-secondary' : 'bg-health-accent/20 text-health-accent'
+}
 
 const formatTimeAgo = (date) => {
   const diff = new Date() - new Date(date)
@@ -94,10 +110,8 @@ export default function NotificationCenter() {
                       <div className="absolute left-0 top-0 bottom-0 w-1 bg-health-accent" />
                     )}
                     <div className="flex gap-3">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                        !n.isRead ? 'bg-health-accent/20 text-health-accent' : 'bg-health-bg text-health-secondary'
-                      }`}>
-                        <Bell className="w-4 h-4" />
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${typeBg(n.type, n.isRead)}`}>
+                        {typeIcon(n.type)}
                       </div>
                       <div className="flex-1">
                         <p className={`text-xs leading-relaxed ${

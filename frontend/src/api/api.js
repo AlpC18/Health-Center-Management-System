@@ -116,7 +116,8 @@ export const klientProgrametApi = crudApi('/klientprogramet')
 export const produktetApi = crudApi('/produktet')
 export const shitjetApi = {
   ...crudApi('/shitjet'),
-  getMy: () => api.get('/shitjet/my')
+  getMy: () => api.get('/shitjet/my'),
+  updatePaymentStatus: (id, statusiPageses) => api.patch(`/shitjet/${id}/pagesa`, { statusiPageses }),
 }
 export const vlereiisimetApi = {
   ...crudApi('/vlereisimet'),
@@ -131,6 +132,12 @@ export const terminetApi = {
 export const dashboardApi = {
   getStats: () => api.get('/dashboard/stats'),
   getAnalytics: () => api.get('/dashboard/analytics'),
+  getLowStock: (threshold = 10) => api.get(`/dashboard/low-stock?threshold=${threshold}`),
+}
+
+export const reportsApi = {
+  getAnalytics: () => api.get('/reports/analytics'),
+  getKlientetPdf: () => api.get('/reports/klientet-pdf', { responseType: 'blob' }),
 }
 
 export const advancedApi = {

@@ -24,6 +24,7 @@ const ClientPortalPage = lazy(() => import('./pages/ClientPortalPage'))
 const ProfilePage = lazy(() => import('./pages/ProfilePage'))
 const AuditLogsPage = lazy(() => import('./pages/entities').then((m) => ({ default: m.AuditLogsPage })))
 const AdvancedFeaturesPage = lazy(() => import('./pages/AdvancedFeaturesPage'))
+const ReportsPage = lazy(() => import('./pages/ReportsPage'))
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'))
 const PortalDashboard = lazy(() => import('./pages/portal/PortalDashboard'))
 const PortalTerminet = lazy(() => import('./pages/portal/PortalTerminet'))
@@ -52,8 +53,11 @@ function ProtectedRoute() {
 }
 
 function KlientRoute({ children }) {
-  const token = useAuthStore((s) => s.accessToken)
-  if (!token) return <Navigate to="/login" replace />
+  const { accessToken, user } = useAuthStore()
+  if (!accessToken) return <Navigate to="/login" replace />
+  const role = user?.role ?? ''
+  const isAdmin = role === 'Admin' || role === 'Staff' || role === 'Therapist'
+  if (isAdmin) return <Navigate to="/dashboard" replace />
   return <PortalLayout>{children}</PortalLayout>
 }
 
@@ -124,6 +128,7 @@ export default function App() {
             </Route>
             <Route path="/calendar" element={<CalendarPage />} />
             <Route path="/advanced" element={<AdvancedFeaturesPage />} />
+            <Route path="/reports" element={<ReportsPage />} />
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/portal" element={<ClientPortalPage />} />
           </Route>

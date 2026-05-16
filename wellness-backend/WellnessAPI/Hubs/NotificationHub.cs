@@ -14,3 +14,11 @@ public class NotificationHub : Hub
         await Clients.All.SendAsync("ReceiveMessage", user, message);
     }
 }
+
+public static class NotificationEvents
+{
+    public const string NewAppointment = "NewAppointment";
+    public const string NewReview = "NewReview";
+    public const string LowStock = "LowStock";
+    public const string ReceiveNotification = "ReceiveNotification";
+}

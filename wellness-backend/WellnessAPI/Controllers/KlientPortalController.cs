@@ -288,7 +288,8 @@ public class KlientPortalController : ControllerBase
             .Select(s => new ShitjeResponseDto(
                 s.ShitjeId, s.KlientId, "",
                 s.ProduktId, s.Produkti.EmriProduktit,
-                s.Sasia, s.CmimiTotal, s.DataShitjes))
+                s.Sasia, s.CmimiTotal, s.DataShitjes,
+                s.TipiPageses, s.StatusiPageses))
             .ToListAsync();
         return Ok(list);
     }

@@ -57,7 +57,7 @@ public class KlientetController : ControllerBase
     public async Task<ActionResult<KlientResponseDto>> GetById(int id)
     {
         var k = await _db.Klientet.FindAsync(id);
-        if (k is null) return NotFound(new { message = $"Klienti #{id} nuk u gjet." });
+        if (k is null) return NotFound(new { success = false, message = $"Klienti #{id} nuk u gjet." });
         return Ok(ToDto(k));
     }
 
@@ -66,7 +66,7 @@ public class KlientetController : ControllerBase
     public async Task<ActionResult<KlientResponseDto>> Create([FromBody] KlientCreateDto dto)
     {
         if (await _db.Klientet.AnyAsync(k => k.Email == dto.Email))
-            return Conflict(new { message = "Email tashmÃ« ekziston." });
+            return BadRequest(new { success = false, message = "Email tashmë ekziston." });
 
         var k = new Klient
         {
@@ -101,7 +101,7 @@ public class KlientetController : ControllerBase
         var k = await _db.Klientet.FindAsync(id);
         if (k is null) return NotFound();
         if (await _db.Klientet.AnyAsync(x => x.Email == dto.Email && x.KlientId != id))
-            return Conflict(new { message = "Email tashmÃ« pÃ«rdoret." });
+            return BadRequest(new { success = false, message = "Email tashmë përdoret." });
 
         var old = ToDto(k);
         k.Emri = dto.Emri; k.Mbiemri = dto.Mbiemri; k.Email = dto.Email;

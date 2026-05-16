@@ -24,6 +24,7 @@ import {
   Keyboard,
   Activity,
   Sparkles,
+  BarChart2,
 } from 'lucide-react'
 import useAuthStore from '../../store/authStore'
 import useThemeStore from '../../store/themeStore'
@@ -52,6 +53,7 @@ const adminNavItems = [
   { to: '/audit-logs', labelKey: 'auditLogs', icon: Activity },
   { to: '/calendar', labelKey: 'calendar', icon: CalendarDays },
   { to: '/advanced', labelKey: 'Advanced', icon: Sparkles },
+  { to: '/reports', labelKey: 'Raporte', icon: BarChart2 },
 ]
 
 const clientNavItems = [

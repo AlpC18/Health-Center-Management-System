@@ -82,4 +82,15 @@ public class DashboardController : ControllerBase
 
         return Ok(new { trends, services });
     }
+
+    [HttpGet("low-stock")]
+    public async Task<ActionResult> GetLowStock([FromQuery] int threshold = 10)
+    {
+        var products = await _db.Produktet
+            .Where(p => p.Aktiv && p.SasiaStok <= threshold)
+            .OrderBy(p => p.SasiaStok)
+            .Select(p => new { p.ProduktId, p.EmriProduktit, p.SasiaStok, p.Kategoria })
+            .ToListAsync();
+        return Ok(new { data = products, total = products.Count, threshold });
+    }
 }
