@@ -10,6 +10,17 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!--
+      The MigrationsMySql folder contains MySQL-only migrations.
+      We currently run SQLite (see appsettings.json), so excluding them
+      prevents EF from trying to apply MySQL SQL on SQLite.
+      Re-enable by removing this block when switching to MySQL.
+    -->
+    <Compile Remove="MigrationsMySql\**\*.cs" />
+    <None Include="MigrationsMySql\**\*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="AspNetCoreRateLimit" Version="5.0.0" />
     <PackageReference Include="ClosedXML" Version="0.105.0" />
     <PackageReference Include="FluentAssertions" Version="8.9.0" />
@@ -29,7 +40,7 @@
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="Microsoft.IdentityModel.Tokens" Version="8.17.0" />
-    <PackageReference Include="Microsoft.OpenApi" Version="3.5.1" />
+    <PackageReference Include="Microsoft.OpenApi" Version="2.4.1" />
     <PackageReference Include="Moq" Version="4.20.72" />
     <PackageReference Include="Pomelo.EntityFrameworkCore.MySql" Version="9.0.0" />
     <PackageReference Include="QuestPDF" Version="2026.2.4" />

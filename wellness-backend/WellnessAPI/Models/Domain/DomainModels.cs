@@ -165,3 +165,62 @@ public class AuditLog
     public string? IpAddress { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
+
+// ── Additional CRUD entities ────────────────────────────────────────────────
+
+public class Salla
+{
+    public int SallaId { get; set; }
+    public string Emri { get; set; } = string.Empty;
+    public int Kapaciteti { get; set; }
+    public string? Tipi { get; set; }
+    public string? Pershkrimi { get; set; }
+    public bool Aktive { get; set; } = true;
+}
+
+public class Furnizuesi
+{
+    public int FurnizuesId { get; set; }
+    public string Emri { get; set; } = string.Empty;
+    public string? KontaktPersona { get; set; }
+    public string? Email { get; set; }
+    public string? Telefoni { get; set; }
+    public string? Adresa { get; set; }
+    public bool Aktiv { get; set; } = true;
+    public DateTime DataRegjistrimit { get; set; } = DateTime.UtcNow;
+}
+
+public class Lajmerimi
+{
+    public int LajmerimId { get; set; }
+    public string Titulli { get; set; } = string.Empty;
+    public string Permbajtja { get; set; } = string.Empty;
+    public string Audienca { get; set; } = "All";
+    public string Prioriteti { get; set; } = "Mesem";
+    public DateTime DataKrijimit { get; set; } = DateTime.UtcNow;
+    public DateTime? DataSkadimit { get; set; }
+    public bool Aktiv { get; set; } = true;
+}
+
+public class Zbritja
+{
+    public int ZbritjeId { get; set; }
+    public string Kodi { get; set; } = string.Empty;
+    public decimal PerqindjaZbritjes { get; set; }
+    public DateTime DataFillimit { get; set; } = DateTime.UtcNow;
+    public DateTime DataMbarimit { get; set; }
+    public int LimitiPerdorimit { get; set; } = 100;
+    public int HereshShfrytezuar { get; set; } = 0;
+    public bool Aktive { get; set; } = true;
+}
+
+public class Pushimi
+{
+    public int PushimId { get; set; }
+    public int TerapistId { get; set; }
+    public DateTime DataFillimit { get; set; }
+    public DateTime DataMbarimit { get; set; }
+    public string? Arsyeja { get; set; }
+    public string Statusi { get; set; } = "Kerkuar";
+    public DateTime DataKerkimit { get; set; } = DateTime.UtcNow;
+}

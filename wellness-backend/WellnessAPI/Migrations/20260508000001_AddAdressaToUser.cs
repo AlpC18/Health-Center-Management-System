@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 namespace WellnessAPI.Migrations
 {
+    [Migration("20260508000001_AddAdressaToUser")]
     public partial class AddAdressaToUser : Migration
     {
         protected override void Up(MigrationBuilder migrationBuilder)

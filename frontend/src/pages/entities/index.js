@@ -11,3 +11,6 @@ export * from './AuditLogsPage'
 export * from './VleresimePage' // contains VlereisiimetPage
 
 export * from './KlientProgrametPage'
+
+// Additional CRUDs
+export * from './AdditionalCrudPages'

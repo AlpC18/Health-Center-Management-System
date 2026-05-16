@@ -142,13 +142,24 @@ public class KlientPortalController : ControllerBase
         var klientId = await GetKlientIdAsync();
         if (klientId == null) return NotFound();
 
-        var cakisma = await _db.Terminet.AnyAsync(t =>
-            t.TerapistId == dto.TerapistId &&
-            t.DataTerminit.Date == dto.DataTerminit.Date &&
-            t.Statusi != "Anuluar" &&
-            ((dto.OraFillimit >= t.OraFillimit && dto.OraFillimit < t.OraMbarimit) ||
-             (dto.OraMbarimit > t.OraFillimit && dto.OraMbarimit <= t.OraMbarimit) ||
-             (dto.OraFillimit <= t.OraFillimit && dto.OraMbarimit >= t.OraMbarimit)));
+        // SQLite cannot translate DateTime.Date or complex TimeSpan overlap math
+        // into SQL, so we narrow down server-side with translatable predicates and
+        // then evaluate the overlap rule in memory.
+        var dayStart = dto.DataTerminit.Date;
+        var dayEnd = dayStart.AddDays(1);
+
+        var sameDayTermine = await _db.Terminet
+            .Where(t => t.TerapistId == dto.TerapistId
+                        && t.Statusi != "Anuluar"
+                        && t.DataTerminit >= dayStart
+                        && t.DataTerminit < dayEnd)
+            .Select(t => new { t.OraFillimit, t.OraMbarimit })
+            .ToListAsync();
+
+        var cakisma = sameDayTermine.Any(t =>
+            (dto.OraFillimit >= t.OraFillimit && dto.OraFillimit < t.OraMbarimit) ||
+            (dto.OraMbarimit > t.OraFillimit && dto.OraMbarimit <= t.OraMbarimit) ||
+            (dto.OraFillimit <= t.OraFillimit && dto.OraMbarimit >= t.OraMbarimit));
 
         if (cakisma)
             return Conflict(new {

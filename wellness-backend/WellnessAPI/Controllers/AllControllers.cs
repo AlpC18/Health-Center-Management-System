@@ -186,14 +186,20 @@ public class TerminetController : ControllerBase
     [HttpPost]
     public async Task<ActionResult> Create(TerminCreateDto dto)
     {
-        // Conflict Detection: Check if therapist is busy
-        var conflict = await _db.Terminet.AnyAsync(x => 
-            x.TerapistId == dto.TerapistId && 
-            x.DataTerminit.Date == dto.DataTerminit.Date &&
-            ((dto.OraFillimit >= x.OraFillimit && dto.OraFillimit < x.OraMbarimit) || 
-             (dto.OraMbarimit > x.OraFillimit && dto.OraMbarimit <= x.OraMbarimit) ||
-             (dto.OraFillimit <= x.OraFillimit && dto.OraMbarimit >= x.OraMbarimit))
-        );
+        // SQLite cannot translate DateTime.Date or TimeSpan overlap math, so we
+        // narrow down server-side and evaluate the overlap rule in memory.
+        var dayStart = dto.DataTerminit.Date;
+        var dayEnd = dayStart.AddDays(1);
+        var sameDay = await _db.Terminet
+            .Where(x => x.TerapistId == dto.TerapistId
+                        && x.DataTerminit >= dayStart
+                        && x.DataTerminit < dayEnd)
+            .Select(x => new { x.OraFillimit, x.OraMbarimit })
+            .ToListAsync();
+        var conflict = sameDay.Any(x =>
+            (dto.OraFillimit >= x.OraFillimit && dto.OraFillimit < x.OraMbarimit) ||
+            (dto.OraMbarimit > x.OraFillimit && dto.OraMbarimit <= x.OraMbarimit) ||
+            (dto.OraFillimit <= x.OraFillimit && dto.OraMbarimit >= x.OraMbarimit));
 
         if (conflict)
             return Conflict(new { message = "Terapisti është i zënë në këtë orar." });
@@ -218,15 +224,21 @@ public class TerminetController : ControllerBase
         var t = await _db.Terminet.FindAsync(id);
         if (t == null) return NotFound();
 
-        // Conflict Detection: Check if therapist is busy (excluding current record)
-        var conflict = await _db.Terminet.AnyAsync(x => 
-            x.TerminId != id &&
-            x.TerapistId == dto.TerapistId && 
-            x.DataTerminit.Date == dto.DataTerminit.Date &&
-            ((dto.OraFillimit >= x.OraFillimit && dto.OraFillimit < x.OraMbarimit) || 
-             (dto.OraMbarimit > x.OraFillimit && dto.OraMbarimit <= x.OraMbarimit) ||
-             (dto.OraFillimit <= x.OraFillimit && dto.OraMbarimit >= x.OraMbarimit))
-        );
+        // SQLite cannot translate DateTime.Date or TimeSpan overlap math, so we
+        // narrow down server-side and evaluate the overlap rule in memory.
+        var dayStart = dto.DataTerminit.Date;
+        var dayEnd = dayStart.AddDays(1);
+        var sameDay = await _db.Terminet
+            .Where(x => x.TerminId != id
+                        && x.TerapistId == dto.TerapistId
+                        && x.DataTerminit >= dayStart
+                        && x.DataTerminit < dayEnd)
+            .Select(x => new { x.OraFillimit, x.OraMbarimit })
+            .ToListAsync();
+        var conflict = sameDay.Any(x =>
+            (dto.OraFillimit >= x.OraFillimit && dto.OraFillimit < x.OraMbarimit) ||
+            (dto.OraMbarimit > x.OraFillimit && dto.OraMbarimit <= x.OraMbarimit) ||
+            (dto.OraFillimit <= x.OraFillimit && dto.OraMbarimit >= x.OraMbarimit));
 
         if (conflict)
             return Conflict(new { message = "Terapisti është i zënë në këtë orar." });

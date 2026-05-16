@@ -32,7 +32,7 @@ export default function PortalDashboard() {
         {[
           { icon: Calendar, label: 'Terminet Total', value: stats?.totalTerminet ?? 0, color: 'bg-blue-500' },
           { icon: Clock, label: 'Termine Aktive', value: stats?.terminetAktive ?? 0, color: 'bg-green-600' },
-          { icon: CreditCard, label: 'Anëtarësimi', value: stats?.anetaresimiAktiv ? 'Aktiv' : 'Jo aktiv', color: 'bg-purple-500' },
+          { icon: CreditCard, label: 'Anëtarësimi', value: stats?.anetaresimiAktiv ? 'Aktive' : 'Jo aktive', color: 'bg-purple-500' },
           { icon: TrendingUp, label: 'Shpenzuar', value: `€${Number(stats?.totalShpenzuar ?? 0).toFixed(2)}`, color: 'bg-emerald-500' },
         ].map(({ icon: Icon, label, value, color }) => (
           <div key={label} className="card p-4 flex items-start gap-3">
@@ -112,7 +112,7 @@ export default function PortalDashboard() {
           {[
             { label: '📅 Rezervo Termin', path: '/portal/rezervo', color: 'bg-green-50 text-green-700 hover:bg-green-100' },
             { label: '⭐ Shto Vlerësim', path: '/portal/vlereisimet', color: 'bg-yellow-50 text-yellow-700 hover:bg-yellow-100' },
-            { label: '🛒 Bli Produkt', path: '/portal/produktet', color: 'bg-blue-50 text-blue-700 hover:bg-blue-100' },
+            { label: '🛒 Bleje Produktin', path: '/portal/produktet', color: 'bg-blue-50 text-blue-700 hover:bg-blue-100' },
             { label: '👤 Profili Im', path: '/portal/profili', color: 'bg-purple-50 text-purple-700 hover:bg-purple-100' },
           ].map(({ label, path, color }) => (
             <a

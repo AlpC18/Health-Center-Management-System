@@ -166,6 +166,13 @@ export const auditlogsApi = {
   getRecent: (limit = 20) => api.get(`/auditlogs?limit=${limit}`),
 }
 
+// Additional CRUDs (Sallat, Furnizuesit, Lajmerimet, Zbritjet, Pushimet)
+export const sallatApi = crudApi('/sallat')
+export const furnizuesitApi = crudApi('/furnizuesit')
+export const lajmerimetApi = crudApi('/lajmerimet')
+export const zbritjetApi = crudApi('/zbritjet')
+export const pushimetApi = crudApi('/pushimet')
+
 export default api
 
 export const portalApi = {

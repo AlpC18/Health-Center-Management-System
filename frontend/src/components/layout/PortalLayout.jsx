@@ -12,11 +12,11 @@ const NAV = [
   { label: 'Ballina', path: '/portal/dashboard', icon: LayoutDashboard },
   { label: 'Terminet e Mia', path: '/portal/terminet', icon: Calendar },
   { label: 'Rezervo Termin', path: '/portal/rezervo', icon: Calendar },
-  { label: 'AnÃ«tarÃ«simi', path: '/portal/anetaresimi', icon: CreditCard },
+  { label: 'Anëtarësimi', path: '/portal/anetaresimi', icon: CreditCard },
   { label: 'Programet', path: '/portal/programet', icon: Activity },
   { label: 'Produktet', path: '/portal/produktet', icon: ShoppingBag },
   { label: 'Blerjet e Mia', path: '/portal/shitjet', icon: Package },
-  { label: 'VlerÃ«simet', path: '/portal/vlereisimet', icon: Star },
+  { label: 'Vlerësimet', path: '/portal/vlereisimet', icon: Star },
   { label: 'Profili Im', path: '/portal/profili', icon: User },
 ]
 
@@ -34,16 +34,16 @@ export default function PortalLayout({ children }) {
   }
 
   return (
-    <div className="min-h-screen flex bg-gradient-to-br from-green-50 to-white">
+    <div className="min-h-screen lg:h-screen lg:overflow-hidden flex bg-gradient-to-br from-green-50 to-white">
       {sidebarOpen && (
         <div className="fixed inset-0 z-20 bg-black/40 lg:hidden" onClick={() => setSidebarOpen(false)} />
       )}
       <aside
         className={`
-        fixed top-0 left-0 h-full z-30 w-64 bg-white border-r border-green-100
+        fixed top-0 left-0 h-screen z-30 w-64 bg-white border-r border-green-100
         flex flex-col transition-transform duration-300 shadow-lg
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
-        lg:translate-x-0 lg:static lg:flex
+        lg:translate-x-0 lg:static lg:h-auto lg:flex
       `}
       >
         <div className="flex items-center gap-3 px-5 py-5 bg-gradient-to-r from-green-600 to-emerald-500">
