@@ -12,7 +12,28 @@ FRONTEND_DIR="$ROOT/frontend"
 export DOTNET_ROOT="${DOTNET_ROOT:-$HOME/.dotnet}"
 export PATH="$DOTNET_ROOT:$DOTNET_ROOT/tools:$PATH"
 
+# Prefer the user's NVM Node over stale Homebrew shims when available.
+if [ -s "$HOME/.nvm/nvm.sh" ]; then
+  # shellcheck source=/dev/null
+  . "$HOME/.nvm/nvm.sh"
+  nvm use --silent 20 >/dev/null 2>&1 || nvm use --silent node >/dev/null 2>&1 || true
+fi
+
+# Load backend environment variables from .env (if present) so config/secrets stay out of git.
+# Parsed line-by-line (not sourced) so values containing ; or spaces survive intact.
+if [ -f "$ROOT/.env" ]; then
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in ''|\#*) continue ;; esac
+    key="${line%%=*}"; val="${line#*=}"
+    export "$key=$val"
+  done < "$ROOT/.env"
+fi
+
+# Development-only fallback so the API can start without committing local secrets.
+export Jwt__Key="${Jwt__Key:-WellnessHouseDevelopmentJwtSigningKey_ChangeBeforeProduction_2026}"
+
 echo "Wellness House — starting up..."
+echo "  (Make sure MySQL is running: cd wellness-backend && docker compose up -d)"
 echo "  Repo:     $ROOT"
 echo "  Backend:  $BACKEND_DIR"
 echo "  Frontend: $FRONTEND_DIR"
@@ -44,6 +65,14 @@ for i in {1..40}; do
 done
 
 # Frontend
+if [ ! -d "$FRONTEND_DIR/node_modules" ]; then
+  echo "Installing frontend dependencies ..."
+  (
+    cd "$FRONTEND_DIR"
+    if [ -f package-lock.json ]; then npm ci; else npm install; fi
+  )
+fi
+
 echo "Starting frontend on http://localhost:5173 ..."
 (
   cd "$FRONTEND_DIR"
