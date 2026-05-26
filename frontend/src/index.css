@@ -12,7 +12,7 @@
     --health-bg: #EEF1F6;
     --health-surface: rgba(255, 255, 255, 0.55);
     --health-hover: rgba(255, 255, 255, 0.85);
-    --health-brand: #FF6B35;
+    --health-brand: #DC2626;
     --health-primary: #0F172A;
     --health-secondary: #64748B;
     --health-border: rgba(255, 255, 255, 0.85);
@@ -25,7 +25,7 @@
     --glass-edge: rgba(15, 23, 42, 0.08);
     --glass-blur: 22px;
 
-    --glow-primary: linear-gradient(135deg, #FF8A4C 0%, #FF5E2E 60%, #E04420 100%);
+    --glow-primary: linear-gradient(135deg, #FF5252 0%, #DC2626 60%, #991B1B 100%);
     --glow-secondary: linear-gradient(135deg, #6FA8FF 0%, #B8C7E6 100%);
     --glow-accent: linear-gradient(135deg, #4FC3F7 0%, #2196F3 100%);
     --glow-success: linear-gradient(135deg, #66D9A4 0%, #34C77B 100%);
@@ -54,7 +54,7 @@
     --health-bg: #07060B;
     --health-surface: rgba(20, 16, 32, 0.55);
     --health-hover: rgba(40, 32, 56, 0.75);
-    --health-brand: #FF2D7A;
+    --health-brand: #FF4D4D;
     --health-primary: #F2EEFF;
     --health-secondary: #9A93B8;
     --health-border: rgba(255, 255, 255, 0.10);
@@ -66,7 +66,7 @@
     --glass-edge: rgba(255, 255, 255, 0.06);
     --glass-blur: 28px;
 
-    --glow-primary: radial-gradient(120% 200% at 50% 130%, #6A1BFF 0%, #2D0E9C 35%, #060214 70%);
+    --glow-primary: radial-gradient(120% 200% at 50% 130%, #FF4D4D 0%, #9B1313 35%, #1A0202 70%);
     --glow-secondary: radial-gradient(120% 200% at 50% 130%, #FF2D7A 0%, #B11157 35%, #1A0212 70%);
     --glow-accent: radial-gradient(120% 200% at 50% 130%, #2EB6FF 0%, #1370C7 35%, #01101F 70%);
     --glow-success: radial-gradient(120% 200% at 50% 130%, #2BE38A 0%, #0E8348 35%, #021A10 70%);
@@ -551,4 +551,147 @@
   body { background: white !important; color: black !important; }
   table { page-break-inside: auto; }
   tr { page-break-inside: avoid; }
+}
+
+/* ──────────────────────────────────────────────────────────────
+   AUTH PAGE — heartbeat pulse on the logo tile
+   Mimics the rhythm of the cyan ECG waveform in the background.
+   ────────────────────────────────────────────────────────────── */
+@keyframes heartbeatPulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 20px 50px -12px rgba(0, 0, 0, 0.55),
+                inset 0 1px 0 rgba(255, 255, 255, 0.65),
+                0 0 0 0 rgba(255, 82, 82, 0.0);
+  }
+  10% {
+    transform: scale(1.06);
+    box-shadow: 0 22px 54px -10px rgba(0, 0, 0, 0.6),
+                inset 0 1px 0 rgba(255, 255, 255, 0.7),
+                0 0 0 8px rgba(255, 82, 82, 0.25);
+  }
+  20% {
+    transform: scale(0.98);
+    box-shadow: 0 20px 50px -12px rgba(0, 0, 0, 0.55),
+                inset 0 1px 0 rgba(255, 255, 255, 0.65),
+                0 0 0 14px rgba(255, 82, 82, 0.0);
+  }
+  30% {
+    transform: scale(1.04);
+    box-shadow: 0 22px 54px -10px rgba(0, 0, 0, 0.6),
+                inset 0 1px 0 rgba(255, 255, 255, 0.7),
+                0 0 0 18px rgba(255, 82, 82, 0.12);
+  }
+  45% {
+    transform: scale(1);
+    box-shadow: 0 20px 50px -12px rgba(0, 0, 0, 0.55),
+                inset 0 1px 0 rgba(255, 255, 255, 0.65),
+                0 0 0 22px rgba(255, 82, 82, 0.0);
+  }
+}
+.logo-heartbeat {
+  animation: heartbeatPulse 1.4s ease-in-out infinite;
+  will-change: transform, box-shadow;
+}
+
+/* Slide-in for the therapist-only conditional block */
+@keyframes fadeSlideIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Small fast heartbeat for the submit-button loading icon (lub-dub at ~67bpm) */
+@keyframes heartbeatBeat {
+  0%, 100% { transform: scale(1); }
+  20% { transform: scale(1.25); }
+  40% { transform: scale(1); }
+  60% { transform: scale(1.15); }
+  80% { transform: scale(1); }
+}
+
+/* ──────────────────────────────────────────────────────────────
+   LIQUID GLASS PRISM BUTTON — matches the showcase UI kit:
+   • Deep glossy dark core
+   • Chromatic refractive ring (conic gradient border)
+   • Stacked multi-color outer glow (cyan / pink / purple)
+   • Top inner highlight + bottom inner shadow for 3D depth
+   ────────────────────────────────────────────────────────────── */
+.btn-glass-prism {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1.1rem;
+  border-radius: 9999px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-size: 0.72rem;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+  cursor: pointer;
+  isolation: isolate;
+  border: 1.5px solid transparent;
+  background:
+    linear-gradient(180deg, rgba(18, 12, 32, 0.92), rgba(6, 2, 16, 0.96)) padding-box,
+    conic-gradient(
+      from 200deg at 50% 50%,
+      #4FC3F7 0%,
+      #8A6BFF 25%,
+      #FF4DB6 50%,
+      #FF7A4D 70%,
+      #4FC3F7 100%
+    ) border-box;
+  box-shadow:
+    /* top inner light reflection */
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.55),
+    /* bottom inner shadow for inset depth */
+    inset 0 -8px 14px rgba(0, 0, 0, 0.55),
+    /* hairline glow ring */
+    0 0 0 1px rgba(255, 255, 255, 0.06),
+    /* deep drop shadow */
+    0 10px 26px -4px rgba(0, 0, 0, 0.7),
+    /* cyan halo on the left */
+    -10px 4px 32px -6px rgba(79, 195, 247, 0.55),
+    /* magenta halo on the right */
+    10px 4px 32px -6px rgba(255, 77, 182, 0.55),
+    /* warm aura beneath */
+    0 16px 44px -8px rgba(138, 107, 255, 0.45);
+  transition: transform 220ms ease, box-shadow 220ms ease, filter 220ms ease;
+  will-change: transform, box-shadow;
+}
+
+.btn-glass-prism:hover {
+  transform: translateY(-1px) scale(1.04);
+  filter: brightness(1.08) saturate(1.12);
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.7),
+    inset 0 -8px 14px rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(255, 255, 255, 0.12),
+    0 14px 32px -4px rgba(0, 0, 0, 0.75),
+    -14px 4px 44px -6px rgba(79, 195, 247, 0.8),
+    14px 4px 44px -6px rgba(255, 77, 182, 0.8),
+    0 22px 60px -8px rgba(138, 107, 255, 0.65);
+}
+
+.btn-glass-prism:active {
+  transform: translateY(0) scale(1.02);
+  filter: brightness(0.96);
+}
+
+/* Specular sweep — subtle moving highlight on the surface */
+.btn-glass-prism::before {
+  content: '';
+  position: absolute;
+  inset: 1.5px;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(
+    115deg,
+    transparent 35%,
+    rgba(255, 255, 255, 0.18) 50%,
+    transparent 65%
+  );
+  mix-blend-mode: screen;
+  opacity: 0.85;
 }
