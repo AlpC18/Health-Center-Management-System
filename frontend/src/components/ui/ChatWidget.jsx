@@ -7,9 +7,9 @@ export default function ChatWidget() {
   const [isOpen, setIsOpen] = useState(false)
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
-  const [connection, setConnection] = useState(null)
   const { user } = useAuthStore()
   const messagesEndRef = useRef(null)
+  const connectionRef = useRef(null)
 
   useEffect(() => {
     const newConnection = new signalR.HubConnectionBuilder()
@@ -17,20 +17,18 @@ export default function ChatWidget() {
       .withAutomaticReconnect()
       .build()
 
-    setConnection(newConnection)
-  }, [])
+    connectionRef.current = newConnection
+    newConnection.on("ReceiveMessage", (sender, message) => {
+      setMessages(prev => [...prev, { sender, message, time: new Date() }])
+    })
+    newConnection.start().catch(e => console.error("Chat Connection Failed: ", e))
 
-  useEffect(() => {
-    if (connection) {
-      connection.start()
-        .then(() => {
-          connection.on("ReceiveMessage", (sender, message) => {
-            setMessages(prev => [...prev, { sender, message, time: new Date() }])
-          })
-        })
-        .catch(e => console.error("Chat Connection Failed: ", e))
+    return () => {
+      newConnection.off("ReceiveMessage")
+      newConnection.stop().catch(e => console.error("Chat Disconnect Failed: ", e))
+      connectionRef.current = null
     }
-  }, [connection])
+  }, [])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -38,6 +36,7 @@ export default function ChatWidget() {
 
   const sendMessage = async (e) => {
     e.preventDefault()
+    const connection = connectionRef.current
     if (!input.trim() || !connection) return
 
     try {
@@ -53,34 +52,41 @@ export default function ChatWidget() {
       {/* Floating Button */}
       <button
         onClick={() => setIsOpen(true)}
-        className={`fixed bottom-6 right-6 p-4 rounded-full shadow-2xl transition-all hover:scale-105 z-40 ${
-          isOpen ? 'scale-0 opacity-0' : 'scale-100 opacity-100 bg-health-brand text-white'
+        className={`btn-primary fixed bottom-6 right-6 !p-4 z-40 ${
+          isOpen ? 'scale-0 opacity-0' : 'scale-100 opacity-100'
         }`}
+        aria-label="Open chat"
       >
         <MessageSquare className="w-6 h-6" />
       </button>
 
       {/* Chat Window */}
       <div
-        className={`fixed bottom-6 right-6 w-80 sm:w-96 bg-white border border-health-border rounded-2xl shadow-2xl flex flex-col transition-all origin-bottom-right z-50 ${
+        className={`fixed bottom-6 right-6 w-80 sm:w-96 card flex flex-col transition-all origin-bottom-right z-50 ${
           isOpen ? 'scale-100 opacity-100' : 'scale-0 opacity-0 pointer-events-none'
         }`}
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-health-border bg-gradient-to-r from-health-brand to-health-accent text-white rounded-t-2xl">
-          <div className="flex flex-col">
+        <div
+          className="flex items-center justify-between p-4 text-white rounded-t-[22px] relative overflow-hidden"
+          style={{
+            background: 'var(--glow-primary)',
+            boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.45), inset 0 -8px 18px rgba(0,0,0,0.2)',
+          }}
+        >
+          <div className="flex flex-col relative z-10">
             <span className="font-bold">Mbështetja Live</span>
-            <span className="text-xs text-green-100 flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span> Online
+            <span className="text-xs opacity-90 flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-emerald-300 animate-pulse"></span> Online
             </span>
           </div>
-          <button onClick={() => setIsOpen(false)} className="p-1 hover:bg-white/20 rounded-lg transition-colors">
+          <button onClick={() => setIsOpen(false)} className="p-1 hover:bg-white/20 rounded-lg transition-colors relative z-10">
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Messages */}
-        <div className="h-80 overflow-y-auto p-4 flex flex-col gap-3 bg-gray-50/50">
+        <div className="h-80 overflow-y-auto p-4 flex flex-col gap-3">
           {messages.length === 0 ? (
             <div className="m-auto text-center text-health-secondary text-sm">
               <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-20" />
@@ -92,11 +98,14 @@ export default function ChatWidget() {
               return (
                 <div key={i} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
                   <span className="text-[10px] text-health-secondary mb-1 ml-1">{msg.sender}</span>
-                  <div className={`px-4 py-2 rounded-2xl max-w-[85%] text-sm ${
-                    isMe 
-                      ? 'bg-health-brand text-white rounded-br-none' 
-                      : 'bg-white border border-health-border text-health-primary rounded-bl-none shadow-sm'
-                  }`}>
+                  <div
+                    className={`px-4 py-2 max-w-[85%] text-sm rounded-2xl ${isMe ? 'text-white rounded-br-none' : 'text-health-primary rounded-bl-none'}`}
+                    style={
+                      isMe
+                        ? { background: 'var(--glow-primary)', boxShadow: '0 6px 16px -6px color-mix(in srgb, var(--health-brand) 60%, transparent), inset 0 1px 0 rgba(255,255,255,0.4)' }
+                        : { background: 'var(--glass-tint-strong)', border: '1px solid var(--glass-border)', backdropFilter: 'blur(12px)' }
+                    }
+                  >
                     {msg.message}
                   </div>
                 </div>
@@ -107,19 +116,23 @@ export default function ChatWidget() {
         </div>
 
         {/* Input */}
-        <form onSubmit={sendMessage} className="p-3 bg-white border-t border-health-border rounded-b-2xl">
+        <form onSubmit={sendMessage} className="p-3 border-t border-health-border">
           <div className="relative flex items-center">
             <input
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Shkruaj mesazhin..."
-              className="w-full pl-4 pr-12 py-2.5 bg-gray-50 border border-health-border rounded-full text-sm focus:outline-none focus:border-health-brand transition-colors"
+              className="input !pr-12"
             />
             <button
               type="submit"
               disabled={!input.trim()}
-              className="absolute right-1.5 p-1.5 text-white bg-health-brand rounded-full hover:bg-health-brand/90 disabled:opacity-50 disabled:hidden transition-all"
+              className="absolute right-1.5 p-2 text-white rounded-full disabled:opacity-40 disabled:hidden transition-all"
+              style={{
+                background: 'var(--glow-primary)',
+                boxShadow: '0 6px 16px -6px color-mix(in srgb, var(--health-brand) 65%, transparent), inset 0 1px 0 rgba(255,255,255,0.45)',
+              }}
             >
               <Send className="w-4 h-4 ml-0.5" />
             </button>

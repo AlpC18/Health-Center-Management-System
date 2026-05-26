@@ -49,18 +49,24 @@ export default function NotificationCenter() {
     <div className="relative" ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 text-health-secondary hover:text-health-primary hover:bg-health-hover rounded-xl transition-all group"
+        className="btn-ghost relative !p-2 group"
       >
         <Bell className="w-5 h-5 group-hover:rotate-12 transition-transform" />
         {unreadCount > 0 && (
-          <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-health-brand text-white text-[10px] font-bold flex items-center justify-center rounded-full border-2 border-health-surface animate-bounce-short">
+          <span
+            className="absolute top-0.5 right-0.5 min-w-[18px] h-[18px] px-1 text-white text-[10px] font-bold flex items-center justify-center rounded-full animate-bounce-short"
+            style={{
+              background: 'var(--glow-primary)',
+              boxShadow: '0 4px 10px -2px color-mix(in srgb, var(--health-brand) 70%, transparent), inset 0 1px 0 rgba(255,255,255,0.45)',
+            }}
+          >
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-3 w-80 md:w-96 bg-health-surface border border-health-border rounded-2xl shadow-2xl z-[100] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+        <div className="card absolute right-0 mt-3 w-80 md:w-96 z-[100] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
           {/* Header */}
           <div className="px-5 py-4 border-b border-health-border bg-health-surface/50 flex items-center justify-between">
             <div>

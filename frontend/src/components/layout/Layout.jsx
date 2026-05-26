@@ -1,6 +1,5 @@
-import { useState } from 'react'
+import { createElement, useState } from 'react'
 import { NavLink, Link, Outlet, useNavigate } from 'react-router-dom'
-import toast from 'react-hot-toast'
 import NotificationCenter from './NotificationCenter'
 import {
   LayoutDashboard,
@@ -15,7 +14,6 @@ import {
   ShoppingCart,
   Star,
   CalendarDays,
-  Leaf,
   LogOut,
   Menu,
   X,
@@ -24,15 +22,12 @@ import {
   Keyboard,
   Activity,
   Sparkles,
-<<<<<<< HEAD
   BarChart2,
-=======
   Building2,
   Truck,
   Megaphone,
   Tag,
   CalendarOff,
->>>>>>> 5cd2436aef382db6b652f0911d8055a1cdbb1f96
 } from 'lucide-react'
 import useAuthStore from '../../store/authStore'
 import useThemeStore from '../../store/themeStore'
@@ -44,6 +39,7 @@ import useKeyboardShortcuts from '../../hooks/useKeyboardShortcuts'
 import OfflineBanner from '../ui/OfflineBanner'
 import KeyboardShortcutsModal from '../ui/KeyboardShortcutsModal'
 import ChatWidget from '../ui/ChatWidget'
+import healthLogo from '../../assets/health-logo.png'
 
 const adminNavItems = [
   { to: '/dashboard', labelKey: 'dashboard', icon: LayoutDashboard },
@@ -75,16 +71,22 @@ const clientNavItems = [
   { to: '/profile', labelKey: 'Profili Im', icon: Users },
 ]
 
+// Therapist self-service: their portal + the screens they need to do work.
+const therapistNavItems = [
+  { to: '/terapist-portal', labelKey: 'Portali Im', icon: UserCheck },
+  { to: '/terminet', labelKey: 'appointments', icon: Calendar },
+  { to: '/klientet', labelKey: 'clients', icon: Users },
+  { to: '/calendar', labelKey: 'calendar', icon: CalendarDays },
+  { to: '/profile', labelKey: 'Profili Im', icon: Users },
+]
+
 function SidebarContent({ onClose, lang = 'sq' }) {
   const { user, clearAuth } = useAuthStore()
   const navigate = useNavigate()
   const roles = Array.isArray(user?.roles) ? user.roles : []
-  const isAdmin =
-    user?.role === 'Admin' ||
-    user?.role === 'Therapist' ||
-    roles.includes('Admin') ||
-    roles.includes('Staff') ||
-    roles.includes('Therapist')
+  const isAdmin = user?.role === 'Admin' || roles.includes('Admin') || roles.includes('Staff')
+  const isTherapist = !isAdmin && (user?.role === 'Therapist' || roles.includes('Therapist'))
+  const navItems = isAdmin ? adminNavItems : isTherapist ? therapistNavItems : clientNavItems
 
   const handleLogout = async () => {
     try {
@@ -101,10 +103,20 @@ function SidebarContent({ onClose, lang = 'sq' }) {
     <div className="flex flex-col h-full">
       {/* Logo */}
       <div className="flex items-center gap-3 px-6 py-6 border-b border-health-border">
-        <div className="p-2 bg-health-brand rounded-xl">
-          <Leaf className="h-5 w-5 text-white" />
+        <div
+          className="rounded-2xl relative overflow-hidden flex items-center justify-center"
+          style={{
+            width: '44px',
+            height: '44px',
+            background: 'var(--glass-tint-strong)',
+            border: '1px solid var(--glass-border)',
+            backdropFilter: 'blur(14px)',
+            boxShadow: '0 8px 22px -6px rgba(15,23,42,0.18), inset 0 1px 0 rgba(255,255,255,0.55)',
+          }}
+        >
+          <img src={healthLogo} alt="Health Center logo" className="w-full h-full object-contain p-1 relative z-10" />
         </div>
-        <span className="font-bold text-health-primary text-lg tracking-tight">Wellness House</span>
+        <span className="font-bold text-health-primary text-base tracking-tight leading-tight">Health Center<br/><span className="text-[10px] font-semibold text-health-secondary uppercase tracking-widest">Management System</span></span>
         {onClose && (
           <button
             onClick={onClose}
@@ -117,21 +129,21 @@ function SidebarContent({ onClose, lang = 'sq' }) {
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto px-4 py-6 space-y-1">
-        {(isAdmin ? adminNavItems : clientNavItems).map(({ to, labelKey, icon: Icon }) => (
+        {navItems.map(({ to, labelKey, icon: Icon }) => (
           <NavLink
             key={to}
             to={to}
             onClick={onClose}
             className={({ isActive }) =>
-              `flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
+              `flex items-center gap-3 px-4 py-3 rounded-full text-sm font-semibold transition-all duration-300 relative overflow-hidden ${
                 isActive
-                  ? 'bg-health-brand text-white shadow-lg shadow-health-brand/20'
+                  ? 'text-white nav-link-active-glass'
                   : 'text-health-secondary hover:bg-health-hover hover:text-health-primary'
               }`
             }
           >
-            <Icon className="h-4 w-4 flex-shrink-0" />
-            {labelKey.startsWith('Portal') ? labelKey : t(lang, labelKey)}
+            {createElement(Icon, { className: 'h-4 w-4 flex-shrink-0' })}
+            {labelKey.startsWith('Portal') || labelKey.startsWith('Portali') ? labelKey : t(lang, labelKey)}
           </NavLink>
         ))}
 
@@ -149,9 +161,9 @@ function SidebarContent({ onClose, lang = 'sq' }) {
                  key={s.label}
                  to={s.to}
                  className={({ isActive }) =>
-                   `flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
+                   `flex items-center gap-3 px-4 py-2.5 rounded-full text-sm font-medium transition-all duration-300 ${
                      isActive
-                       ? 'bg-health-brand text-white shadow-lg shadow-health-brand/20'
+                       ? 'text-white nav-link-active-glass'
                        : 'text-health-secondary hover:bg-health-hover hover:text-health-primary group'
                    }`
                  }
@@ -207,23 +219,23 @@ export default function Layout() {
   useKeyboardShortcuts({ onShowHelp: () => setShortcutsOpen((v) => !v) })
 
   return (
-    <div className="flex h-screen bg-health-bg overflow-hidden text-health-primary">
+    <div className="flex h-screen overflow-hidden text-health-primary">
       {/* Desktop sidebar */}
-      <aside className="hidden lg:flex flex-col w-64 flex-shrink-0 bg-health-surface border-r border-health-border shadow-xl">
+      <aside className="hidden lg:flex flex-col w-64 flex-shrink-0 glass-sidebar relative z-20">
         <SidebarContent lang={lang} />
       </aside>
 
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden"
+          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-md lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
       {/* Mobile sidebar */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-64 bg-health-surface border-r border-health-border lg:hidden transition-transform duration-300 ease-in-out ${
+        className={`fixed inset-y-0 left-0 z-50 w-64 glass-sidebar lg:hidden transition-transform duration-300 ease-in-out ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
@@ -233,7 +245,7 @@ export default function Layout() {
       {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Mobile header */}
-        <div className="flex items-center gap-3 px-6 py-4 bg-health-surface border-b border-health-border lg:hidden">
+        <div className="flex items-center gap-3 px-6 py-4 glass-bar lg:hidden">
           <button
             onClick={() => setSidebarOpen(true)}
             className="p-2 text-health-secondary hover:text-health-primary"
@@ -241,7 +253,7 @@ export default function Layout() {
             <Menu className="h-6 w-6" />
           </button>
           <div className="flex items-center gap-2">
-            <Leaf className="h-5 w-5 text-health-brand" />
+            <img src={healthLogo} alt="Health Center logo" className="h-7 w-7 object-contain" />
           </div>
           <div className="ml-auto flex items-center gap-4">
             <NotificationCenter />
@@ -256,35 +268,33 @@ export default function Layout() {
         </div>
 
         {/* Desktop header toolbar */}
-        <div className="hidden lg:flex items-center justify-between px-10 py-4 bg-health-surface/50 backdrop-blur-md border-b border-health-border sticky top-0 z-30">
+        <div className="hidden lg:flex items-center justify-between px-10 py-4 glass-bar sticky top-0 z-30">
           <div className="flex items-center gap-4">
             <h2 className="text-xl font-bold text-health-primary tracking-tight">
               Mirë se vini, <span className="text-health-brand">{user?.firstName}</span>
             </h2>
-            <div className="px-3 py-1 bg-health-accent/10 border border-health-accent/20 rounded-lg">
-              <span className="text-[10px] font-bold text-health-accent uppercase tracking-widest">
-                {displayRole}
-              </span>
+            <div className="badge-accent">
+              {displayRole}
             </div>
           </div>
-          
+
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-3">
               <NotificationCenter />
-              
-              {/* Theme Selector */}
-              <div className="flex items-center bg-health-bg border border-health-border p-1 rounded-2xl">
+
+              {/* Theme Selector — liquid glass pill */}
+              <div className="seg-wrap grid-cols-2 !gap-0">
                 <button
                   onClick={() => theme !== 'light' && toggleTheme()}
-                  className={`p-2 rounded-xl transition-all ${theme === 'light' ? 'bg-health-brand text-white shadow-lg' : 'text-health-secondary hover:text-health-primary'}`}
-                  title="Açık Tema"
+                  className={`seg-btn !px-3 !py-2 ${theme === 'light' ? 'seg-btn-active' : ''}`}
+                  title="Light theme"
                 >
                   <Sun className="h-4 w-4" />
                 </button>
                 <button
                   onClick={() => theme !== 'dark' && toggleTheme()}
-                  className={`p-2 rounded-xl transition-all ${theme === 'dark' ? 'bg-health-brand text-white shadow-lg' : 'text-health-secondary hover:text-health-primary'}`}
-                  title="Koyu Tema"
+                  className={`seg-btn !px-3 !py-2 ${theme === 'dark' ? 'seg-btn-active' : ''}`}
+                  title="Dark theme"
                 >
                   <Moon className="h-4 w-4" />
                 </button>
@@ -292,18 +302,18 @@ export default function Layout() {
 
               <button
                 onClick={() => setShortcutsOpen(true)}
-                className="p-2.5 text-health-secondary hover:text-health-primary hover:bg-health-hover rounded-xl transition-all border border-transparent hover:border-health-border ring-health-accent/20 active:ring-4"
+                className="btn-ghost"
                 title="Shkurtesat?"
               >
                 <Keyboard className="h-4 w-4" />
               </button>
             </div>
-            
-            <div className="w-[1px] h-6 bg-health-border" />
-            
+
+            <div className="w-[1px] h-6 bg-health-border opacity-60" />
+
             <button
               onClick={toggleLang}
-              className="px-4 py-2 text-xs font-bold text-health-secondary hover:text-health-primary hover:bg-health-bg border border-transparent hover:border-health-border rounded-xl transition-all uppercase tracking-widest"
+              className="btn-ghost uppercase tracking-widest"
             >
               {lang === 'sq' ? 'EN' : 'SQ'}
             </button>
