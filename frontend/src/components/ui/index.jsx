@@ -3,6 +3,7 @@ import { AlertCircle, AlertTriangle, CheckCircle, Info, X } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { t } from '../../i18n'
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const notify = {
   success: (msg) => toast.success(msg, {
     duration: 3000,

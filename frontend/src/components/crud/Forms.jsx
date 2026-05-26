@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Field, Spinner } from '../ui/index'
 
 const emptyStr = (v) => (v === undefined || v === null ? '' : v)

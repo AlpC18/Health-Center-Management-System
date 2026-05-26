@@ -82,6 +82,17 @@ const sq = {
   prev: 'Para',
   next: 'Pas',
   filteredFrom: 'filtruar nga',
+  perPage: 'për faqe',
+  exportCsv: 'CSV',
+  exportExcel: 'Excel',
+  exportPdf: 'PDF',
+  exportMenu: 'Eksporto',
+  noDataToExport: "S'ka të dhëna për eksport",
+  exportSuccess: 'Eksporti përfundoi me sukses!',
+  dateFrom: 'Nga',
+  dateTo: 'Deri',
+  apply: 'Zbato',
+  reset: 'Pastro',
 
   // Confirm dialog
   confirmDelete: 'Konfirmo fshirjen',

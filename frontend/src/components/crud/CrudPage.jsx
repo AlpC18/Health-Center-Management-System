@@ -1,12 +1,16 @@
-import { useState, useEffect } from 'react'
+import { createElement, useState, useEffect, useRef } from 'react'
 import toast from 'react-hot-toast'
-import { Plus, Search, Pencil, Trash2, ChevronUp, ChevronDown, ChevronsUpDown, Download } from 'lucide-react'
+import {
+  Plus, Search, Pencil, Trash2, ChevronUp, ChevronDown, ChevronsUpDown, Download,
+  FileText, FileSpreadsheet, FileType,
+} from 'lucide-react'
 import { Spinner, Modal, EmptyState, notify } from '../ui/index'
 import TableSkeleton from '../ui/TableSkeleton'
 import useLangStore from '../../store/langStore'
 import { t } from '../../i18n'
+import { exportCSV, exportExcel, exportPDF } from '../../utils/export'
 
-const LIMIT = 10
+const PAGE_SIZES = [10, 25, 50, 100]
 
 export default function CrudPage({
   title,
@@ -27,6 +31,7 @@ export default function CrudPage({
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
   const [sortBy, setSortBy] = useState('')
   const [sortDir, setSortDir] = useState('asc')
   const [total, setTotal] = useState(0)
@@ -36,6 +41,9 @@ export default function CrudPage({
   const [editItem, setEditItem] = useState(null)
   const [formLoading, setFormLoading] = useState(false)
 
+  const [exportMenuOpen, setExportMenuOpen] = useState(false)
+  const exportMenuRef = useRef(null)
+
 
   // Debounce search input
   useEffect(() => {
@@ -43,16 +51,28 @@ export default function CrudPage({
     return () => clearTimeout(timer)
   }, [search])
 
-  // Reset to page 1 when debounced search changes
+  // Reset to page 1 when search or page-size changes
   useEffect(() => {
     setPage(1)
-  }, [debouncedSearch])
+  }, [debouncedSearch, pageSize])
 
-  // Main fetch — fires on page, search, sort, or manual reload
+  // Close export menu when clicking outside
+  useEffect(() => {
+    if (!exportMenuOpen) return
+    const onClick = (e) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target)) {
+        setExportMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onClick)
+    return () => document.removeEventListener('mousedown', onClick)
+  }, [exportMenuOpen])
+
+  // Main fetch — fires on page, search, sort, page-size, or manual reload
   useEffect(() => {
     let cancelled = false
     setLoading(true)
-    const params = new URLSearchParams({ page, limit: LIMIT })
+    const params = new URLSearchParams({ page, limit: pageSize })
     if (debouncedSearch) params.set('search', debouncedSearch)
     if (sortBy) { params.set('sortBy', sortBy); params.set('sortDir', sortDir) }
 
@@ -72,7 +92,7 @@ export default function CrudPage({
       .finally(() => { if (!cancelled) setLoading(false) })
 
     return () => { cancelled = true }
-  }, [page, debouncedSearch, sortBy, sortDir, api, lang, refreshKey])
+  }, [page, pageSize, debouncedSearch, sortBy, sortDir, api, lang, refreshKey])
 
   const reload = () => setRefreshKey((k) => k + 1)
 
@@ -92,7 +112,7 @@ export default function CrudPage({
         const res = await api.create(data)
         savedItem = res.data
       }
-      
+
       if (typeof onSaved === 'function') {
         await onSaved(savedItem, data)
       }
@@ -136,10 +156,10 @@ export default function CrudPage({
     item.emri ??
     `#${item[idKey]}`
 
-  const totalPages = Math.ceil(total / LIMIT) || 1
+  const totalPages = Math.ceil(total / pageSize) || 1
   const visibleItems = typeof filterFn === 'function' ? items.filter(filterFn) : items
-  const shownFrom = visibleItems.length > 0 ? (page - 1) * LIMIT + 1 : 0
-  const shownTo = visibleItems.length > 0 ? (page - 1) * LIMIT + visibleItems.length : 0
+  const shownFrom = visibleItems.length > 0 ? (page - 1) * pageSize + 1 : 0
+  const shownTo = visibleItems.length > 0 ? (page - 1) * pageSize + visibleItems.length : 0
 
   // Sortable column header (closure over sortBy/sortDir state)
   const SortHeader = ({ col }) => (
@@ -168,6 +188,17 @@ export default function CrudPage({
     </th>
   )
 
+  // Export handlers (route through the shared util)
+  const doExport = (fn, fmt) => {
+    setExportMenuOpen(false)
+    if (visibleItems.length === 0) {
+      toast.error(t(lang, 'noDataToExport'))
+      return
+    }
+    const ok = fn(visibleItems, columns, title)
+    if (ok) toast.success(`${t(lang, 'exportSuccess')} (${fmt})`)
+  }
+
   if (loading) return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -180,26 +211,6 @@ export default function CrudPage({
     </div>
   )
 
-  const handleExportCSV = () => {
-    if (visibleItems.length === 0) return toast.error(lang === 'sq' ? "S'ka të dhëna për eksport" : "No records to export");
-    const headers = columns.map(c => c.label).join(',') + '\n';
-    const rows = visibleItems.map(item => columns.map(c => {
-      let val = item[c.key];
-      if (typeof val === 'object') val = JSON.stringify(val);
-      const strVal = String(val ?? '').replace(/"/g, '""');
-      return `"${strVal}"`;
-    }).join(',')).join('\n');
-    
-    const blob = new Blob([headers + rows], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${title.replace(/\s+/g, '_')}_Export.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast.success(lang === 'sq' ? 'Eksporti përfundoi me sukses!' : 'Exported successfully!');
-  }
-
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -209,10 +220,46 @@ export default function CrudPage({
           {subtitle && <p className="text-sm text-health-secondary mt-1">{subtitle}</p>}
         </div>
         <div className="flex items-center gap-3">
-          <button onClick={handleExportCSV} className="btn-secondary flex-shrink-0 px-4 py-2 bg-health-surface border border-health-border rounded-lg text-sm font-semibold hover:bg-health-hover">
-            <Download className="h-4 w-4" />
-            {lang === 'sq' ? 'Eksporto' : 'Export'}
-          </button>
+          {/* Export dropdown */}
+          <div className="relative" ref={exportMenuRef}>
+            <button
+              onClick={() => setExportMenuOpen((v) => !v)}
+              className="btn-secondary flex items-center gap-2 flex-shrink-0 px-4 py-2 bg-health-surface border border-health-border rounded-lg text-sm font-semibold hover:bg-health-hover transition-colors"
+            >
+              <Download className="h-4 w-4" />
+              {t(lang, 'exportMenu')}
+              <ChevronDown className={`h-3 w-3 transition-transform ${exportMenuOpen ? 'rotate-180' : ''}`} />
+            </button>
+            {exportMenuOpen && (
+              <div className="absolute right-0 mt-2 w-44 z-30 bg-health-surface border border-health-border rounded-xl shadow-lg overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => doExport(exportCSV, 'CSV')}
+                  className="w-full flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-health-primary hover:bg-health-hover text-left transition-colors"
+                >
+                  <FileText className="h-4 w-4 text-health-secondary" />
+                  {t(lang, 'exportCsv')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => doExport(exportExcel, 'XLSX')}
+                  className="w-full flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-health-primary hover:bg-health-hover text-left transition-colors border-t border-health-border"
+                >
+                  <FileSpreadsheet className="h-4 w-4 text-green-600" />
+                  {t(lang, 'exportExcel')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => doExport(exportPDF, 'PDF')}
+                  className="w-full flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-health-primary hover:bg-health-hover text-left transition-colors border-t border-health-border"
+                >
+                  <FileType className="h-4 w-4 text-red-500" />
+                  {t(lang, 'exportPdf')}
+                </button>
+              </div>
+            )}
+          </div>
+
           <button className="btn-primary flex-shrink-0 px-6 py-2.5 shadow-lg shadow-health-brand/20" onClick={openCreate}>
             <Plus className="h-4 w-4" />
             {t(lang, 'add')}
@@ -220,19 +267,34 @@ export default function CrudPage({
         </div>
       </div>
 
-      {/* Search */}
-      {searchKeys.length > 0 && (
-        <div className="relative max-w-xs">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
-          <input
-            type="text"
-            placeholder={t(lang, 'search')}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="input pl-9"
-          />
-        </div>
-      )}
+      {/* Toolbar: search + page-size */}
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        {searchKeys.length > 0 ? (
+          <div className="relative max-w-xs flex-1 min-w-[180px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+            <input
+              type="text"
+              placeholder={t(lang, 'search')}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="input pl-9"
+            />
+          </div>
+        ) : <div />}
+
+        <label className="flex items-center gap-2 text-xs font-bold text-health-secondary uppercase tracking-wider">
+          <select
+            value={pageSize}
+            onChange={(e) => setPageSize(Number(e.target.value))}
+            className="bg-health-surface border border-health-border rounded-lg px-3 py-2 text-sm font-semibold text-health-primary focus:outline-none focus:ring-2 focus:ring-health-brand/30 transition-all"
+          >
+            {PAGE_SIZES.map((n) => (
+              <option key={n} value={n}>{n}</option>
+            ))}
+          </select>
+          <span>{t(lang, 'perPage')}</span>
+        </label>
+      </div>
 
       {/* Table */}
       <div className="card overflow-hidden">
@@ -309,7 +371,7 @@ export default function CrudPage({
                 </button>
                 <div className="flex items-center justify-center w-12 h-8 rounded-lg bg-health-bg border border-health-border">
                   <span className="text-xs text-health-primary font-bold">
-                    {page}
+                    {page} / {totalPages}
                   </span>
                 </div>
                 <button
@@ -332,16 +394,15 @@ export default function CrudPage({
         title={editItem ? t(lang, 'editRecord') : `${t(lang, 'add')} ${title.toLowerCase()}`}
         size="lg"
       >
-        <FormComponent
-          initial={editItem}
-          onSave={handleSave}
-          loading={formLoading}
-          onCancel={closeModal}
-          {...extraFormProps}
-        />
+        {createElement(FormComponent, {
+          initial: editItem,
+          onSave: handleSave,
+          loading: formLoading,
+          onCancel: closeModal,
+          ...extraFormProps,
+        })}
       </Modal>
 
     </div>
   )
 }
-

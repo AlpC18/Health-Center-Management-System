@@ -6,20 +6,22 @@ export default function useActivityFeed(limit = 10) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
-  const fetch = useCallback(() => {
+  const fetch = useCallback(async () => {
+    await Promise.resolve()
     setLoading(true)
     setError(null)
-    auditlogsApi
-      .getRecent(limit)
-      .then(({ data }) => {
-        const raw = Array.isArray(data) ? data : (data?.data ?? [])
-        setEntries(raw)
-      })
-      .catch(() => setError('Ngarkimi dështoi.'))
-      .finally(() => setLoading(false))
+    try {
+      const { data } = await auditlogsApi.getRecent(limit)
+      const raw = Array.isArray(data) ? data : (data?.data ?? [])
+      setEntries(raw)
+    } catch {
+      setError('Ngarkimi dështoi.')
+    } finally {
+      setLoading(false)
+    }
   }, [limit])
 
-  useEffect(() => { fetch() }, [fetch])
+  useEffect(() => { void fetch() }, [fetch])
 
   return { entries, loading, error, refresh: fetch }
 }

@@ -77,6 +77,17 @@ const en = {
   prev: 'Prev',
   next: 'Next',
   filteredFrom: 'filtered from',
+  perPage: 'per page',
+  exportCsv: 'CSV',
+  exportExcel: 'Excel',
+  exportPdf: 'PDF',
+  exportMenu: 'Export',
+  noDataToExport: 'No records to export',
+  exportSuccess: 'Exported successfully!',
+  dateFrom: 'From',
+  dateTo: 'To',
+  apply: 'Apply',
+  reset: 'Reset',
 
   // Confirm dialog
   confirmDelete: 'Confirm Delete',
