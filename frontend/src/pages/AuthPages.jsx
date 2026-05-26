@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { Leaf, Eye, EyeOff } from 'lucide-react'
+import { Eye, EyeOff } from 'lucide-react'
 import { authApi } from '../api/api'
 import useAuthStore from '../store/authStore'
 import { Spinner } from '../components/ui/index'
 import useLangStore from '../store/langStore'
 import { t } from '../i18n'
+import healthLogo from '../assets/health-logo.png'
 
 const passwordChecks = [
   { label: 'Te pakten 8 karaktere', test: (value) => value.length >= 8 },
@@ -28,12 +29,22 @@ function AuthLayout({ children, title, subtitle }) {
     <div className="min-h-screen bg-health-bg flex items-center justify-center p-6">
       <div className="w-full max-w-md">
         {/* Logo */}
-        <div className="flex flex-col items-center mb-10">
-          <div className="p-4 bg-health-brand rounded-2xl mb-4 shadow-lg shadow-health-brand/20">
-            <Leaf className="h-8 w-8 text-white" />
+        <div className="flex flex-col items-center mb-8">
+          <div
+            className="rounded-3xl mb-5 relative overflow-hidden flex items-center justify-center"
+            style={{
+              width: '112px',
+              height: '112px',
+              background: 'var(--glass-tint-strong)',
+              border: '1px solid var(--glass-border)',
+              backdropFilter: 'blur(18px) saturate(180%)',
+              boxShadow: '0 20px 50px -12px rgba(15,23,42,0.22), inset 0 1px 0 rgba(255,255,255,0.65)',
+            }}
+          >
+            <img src={healthLogo} alt="Health Center Management System" className="w-full h-full object-contain p-2" />
           </div>
-          <h1 className="text-2xl font-bold text-health-primary tracking-tight">Wellness House</h1>
-          <p className="text-sm text-health-secondary mt-1 font-medium tracking-wide uppercase">Sistemi i Menaxhimit</p>
+          <h1 className="text-2xl font-bold text-health-primary tracking-tight text-center">Health Center</h1>
+          <p className="text-[11px] text-health-secondary mt-1 font-semibold tracking-[0.2em] uppercase">Management System</p>
         </div>
 
         {/* Card */}
@@ -67,13 +78,20 @@ export function LoginPage() {
       const res = await authApi.login(form)
       const role = res?.data?.user?.role
 
-      if (loginType === 'Doktor' && role !== 'Therapist') {
-        toast.error('Kjo llogari nuk eshte Doktor.')
-        return
-      }
-      if (loginType === 'Klient' && role !== 'Klient') {
-        toast.error('Kjo llogari nuk eshte Klient.')
-        return
+      // Admin credentials override the selected tab and always go to the admin panel.
+      if (role !== 'Admin') {
+        if (loginType === 'Admin') {
+          toast.error('Kjo llogari nuk eshte Admin.')
+          return
+        }
+        if ((loginType === 'Doktor' || loginType === 'Therapist') && role !== 'Therapist') {
+          toast.error(loginType === 'Therapist' ? 'Kjo llogari nuk eshte Therapist.' : 'Kjo llogari nuk eshte Doktor.')
+          return
+        }
+        if (loginType === 'Klient' && role !== 'Klient') {
+          toast.error('Kjo llogari nuk eshte Klient.')
+          return
+        }
       }
 
       setAuth(res.data)
@@ -88,20 +106,34 @@ export function LoginPage() {
   return (
     <AuthLayout title={t(lang, 'welcome')} subtitle={t(lang, 'loginSubtitle')}>
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="grid grid-cols-2 gap-2 p-1 bg-health-bg rounded-xl border border-health-border">
+        <div className="seg-wrap grid-cols-2">
           <button
             type="button"
             onClick={() => setLoginType('Klient')}
-            className={`px-3 py-2 rounded-lg text-sm font-semibold transition-all ${loginType === 'Klient' ? 'bg-health-brand text-white' : 'text-health-secondary hover:bg-health-hover'}`}
+            className={`seg-btn ${loginType === 'Klient' ? 'seg-btn-active' : ''}`}
           >
-            Kycu si Klient
+            Klient
           </button>
           <button
             type="button"
             onClick={() => setLoginType('Doktor')}
-            className={`px-3 py-2 rounded-lg text-sm font-semibold transition-all ${loginType === 'Doktor' ? 'bg-health-brand text-white' : 'text-health-secondary hover:bg-health-hover'}`}
+            className={`seg-btn ${loginType === 'Doktor' ? 'seg-btn-active' : ''}`}
           >
-            Kycu si Doktor
+            Doktor
+          </button>
+          <button
+            type="button"
+            onClick={() => setLoginType('Therapist')}
+            className={`seg-btn ${loginType === 'Therapist' ? 'seg-btn-active' : ''}`}
+          >
+            Therapist
+          </button>
+          <button
+            type="button"
+            onClick={() => setLoginType('Admin')}
+            className={`seg-btn ${loginType === 'Admin' ? 'seg-btn-active' : ''}`}
+          >
+            Admin
           </button>
         </div>
 
@@ -110,7 +142,7 @@ export function LoginPage() {
           <input
             type="email"
             className="input"
-            placeholder={loginType === 'Doktor' ? 'doktor@example.com' : 'ju@example.com'}
+            placeholder={loginType === 'Doktor' ? 'doktor@example.com' : loginType === 'Therapist' ? 'therapist@example.com' : loginType === 'Admin' ? 'admin@example.com' : 'ju@example.com'}
             value={form.email}
             onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
             autoComplete="email"
