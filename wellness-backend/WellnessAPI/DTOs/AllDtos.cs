@@ -55,7 +55,7 @@ public record ProduktCreateDto(string EmriProduktit, string? Kategoria, string? 
 public record ProduktUpdateDto(string EmriProduktit, string? Kategoria, string? Pershkrimi, decimal Cmimi, int SasiaStok, bool Aktiv);
 public record ProduktResponseDto(int ProduktId, string EmriProduktit, string? Kategoria, string? Pershkrimi, decimal Cmimi, int SasiaStok, bool Aktiv);
 
-public record ShitjeCreateDto(int KlientId, int ProduktId, int Sasia, decimal CmimiTotal, string TipiPageses = "Kesh", string StatusiPageses = "Paguar");
+public record ShitjeCreateDto(int KlientId, int ProduktId, int Sasia, decimal CmimiTotal, string TipiPageses = "Kesh", string StatusiPageses = "Paguar", string? KodiZbritjes = null, int PikatPerdorur = 0);
 public record ShitjeUpdateDto(int KlientId, int ProduktId, int Sasia, decimal CmimiTotal, string TipiPageses = "Kesh", string StatusiPageses = "Paguar");
 public record ShitjeResponseDto(int ShitjeId, int KlientId, string KlientEmri, int ProduktId, string ProduktEmri, int Sasia, decimal CmimiTotal, DateTime DataShitjes, string TipiPageses, string StatusiPageses);
 public record UpdatePaymentStatusDto(string StatusiPageses);
@@ -65,3 +65,29 @@ public record VleresimUpdateDto(int KlientId, int SherbimId, int TerapistId, int
 public record VleresimResponseDto(int VleresimId, int KlientId, string KlientEmri, int SherbimId, string SherbimEmri, int TerapistId, string TerapistEmri, int Nota, string? Komenti, DateTime DataVleresimit);
 
 public record DashboardStatsDto(int TotalKlientet, int TotalTerminet, int TerminetSot, int AnetaresimiAktiv, decimal TeDheratMujore, int TerapistetAktiv, int ProductetNeStok, double NotaMesatare);
+
+// ── Clinical notes ───────────────────────────────────────────────────────────
+public record KlientShenimCreateDto(int KlientId, int? TerminId, int? TerapistId, string Tipi, string Permbajtja, bool Privat = false);
+public record KlientShenimUpdateDto(string Tipi, string Permbajtja, bool Privat);
+public record KlientShenimResponseDto(int ShenimId, int KlientId, string KlientEmri, int? TerminId, int? TerapistId, string? TerapistEmri, string Tipi, string Permbajtja, bool Privat, DateTime DataKrijimit);
+
+// ── Body measurements ────────────────────────────────────────────────────────
+public record KlientMatjeCreateDto(int KlientId, DateTime? DataMatjes, decimal? PeshaKg, decimal? GjatesiaCm, decimal? YndyraTrupore, decimal? BeliCm, decimal? KofshaCm, string? Shenim);
+public record KlientMatjeUpdateDto(DateTime DataMatjes, decimal? PeshaKg, decimal? GjatesiaCm, decimal? YndyraTrupore, decimal? BeliCm, decimal? KofshaCm, string? Shenim);
+public record KlientMatjeResponseDto(int MatjeId, int KlientId, DateTime DataMatjes, decimal? PeshaKg, decimal? GjatesiaCm, decimal? YndyraTrupore, decimal? BeliCm, decimal? KofshaCm, decimal? Bmi, string? Shenim);
+
+// ── Loyalty points ───────────────────────────────────────────────────────────
+public record KlientPikaCreateDto(int KlientId, int Pike, string Tipi, int? LidhjeId, string? Shenim);
+public record KlientPikaResponseDto(int PikaId, int KlientId, int Pike, string Tipi, int? LidhjeId, string? Shenim, DateTime DataKrijimit);
+public record KlientPikatBalanceDto(int KlientId, string KlientEmri, int Balanca, int FituarTotal, int ShperblerTotal);
+
+// ── Recurring booking ────────────────────────────────────────────────────────
+// dataFillimit = first session date; intervaliJave = e.g. 1 = weekly, 2 = bi-weekly;
+// hereNumri = total number of sessions to create.
+public record RecurringTerminCreateDto(
+    int KlientId, int SherbimId, int TerapistId,
+    DateTime DataFillimit, TimeSpan OraFillimit, TimeSpan OraMbarimit,
+    int IntervaliJave, int HereNumri,
+    string Statusi = "Planifikuar", string? Shenimet = null);
+
+public record RecurringTerminResultDto(int Krijuar, int Anashkaluar, List<int> TerminIds, List<string> Mesazhet);
