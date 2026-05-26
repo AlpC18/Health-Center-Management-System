@@ -21,62 +21,94 @@ public class DashboardController : ControllerBase
 
     /// <summary>
     /// Merr statistikat kryesore për kartat e dashboard-it.
+    /// Pranon date-range opsional (from/to) për filtrim të të ardhurave dhe termineve.
     /// </summary>
     /// <returns>Një objekt me shifrat kryesore të sistemit.</returns>
     [HttpGet("stats")]
-    public async Task<ActionResult<DashboardStatsDto>> GetStats()
+    public async Task<ActionResult<DashboardStatsDto>> GetStats(
+        [FromQuery] DateTime? from = null,
+        [FromQuery] DateTime? to = null)
     {
-        // SQLite cannot translate DateTime.Date / .Month / .Year on entity columns,
-        // so build explicit ranges and use straight comparisons.
+        // Use explicit date ranges + straight comparisons so filtering runs server-side
+        // on any provider (MySQL/MariaDB). Aggregates (SUM/AVG/COUNT) also run in SQL.
         var today = DateTime.UtcNow.Date;
         var tomorrow = today.AddDays(1);
+
+        // If caller supplied a range, use it for sales total + appointments-in-range.
+        // Otherwise default to "current month" for sales and "today" for appointments
+        // (preserves existing behaviour for clients that don't send the params).
         var monthStart = new DateTime(today.Year, today.Month, 1);
         var monthEnd = monthStart.AddMonths(1);
+        var rangeFrom = from?.Date ?? monthStart;
+        var rangeToExclusive = to.HasValue ? to.Value.Date.AddDays(1) : monthEnd;
 
         var income = await _db.ShitjetProduktet
-            .Where(s => s.DataShitjes >= monthStart && s.DataShitjes < monthEnd)
-            .Select(s => s.CmimiTotal)
-            .ToListAsync();
-        
-        var ratings = await _db.Vlereisimet
-            .Select(v => (double)v.Nota)
-            .ToListAsync();
+            .Where(s => s.DataShitjes >= rangeFrom && s.DataShitjes < rangeToExclusive)
+            .SumAsync(s => s.CmimiTotal);
+
+        var terminetInRange = (from.HasValue || to.HasValue)
+            ? await _db.Terminet.CountAsync(t => t.DataTerminit >= rangeFrom && t.DataTerminit < rangeToExclusive)
+            : await _db.Terminet.CountAsync(t => t.DataTerminit >= today && t.DataTerminit < tomorrow);
 
         return Ok(new DashboardStatsDto(
             TotalKlientet: await _db.Klientet.CountAsync(),
             TotalTerminet: await _db.Terminet.CountAsync(),
-            TerminetSot: await _db.Terminet.CountAsync(t => t.DataTerminit >= today && t.DataTerminit < tomorrow),
+            TerminetSot: terminetInRange,
             AnetaresimiAktiv: await _db.Anetaresimet.CountAsync(a => a.Statusi == "Aktiv"),
-            TeDheratMujore: income.Sum(),
+            TeDheratMujore: income,
             TerapistetAktiv: await _db.Terapistet.CountAsync(t => t.Aktiv),
             ProductetNeStok: await _db.Produktet.CountAsync(p => p.SasiaStok > 0),
-            NotaMesatare: ratings.Any() ? ratings.Average() : 0
+            NotaMesatare: await _db.Vlereisimet.AverageAsync(v => (double?)v.Nota) ?? 0
         ));
     }
 
     /// <summary>
     /// Merr të dhënat analitike për grafikë (tendencat mujore dhe shërbimet popullore).
+    /// Date-range opsional: nëse jepet, trendi filtrohet brenda intervalit.
     /// </summary>
     /// <returns>Të dhëna të strukturuara për grafikët e frontend-it.</returns>
     [HttpGet("analytics")]
-    public async Task<ActionResult> GetAnalytics()
+    public async Task<ActionResult> GetAnalytics(
+        [FromQuery] DateTime? from = null,
+        [FromQuery] DateTime? to = null)
     {
-        // 1. Monthly Revenue Trend (Last 6 Months)
-        var last6Months = Enumerable.Range(0, 6).Select(i => DateTime.UtcNow.AddMonths(-i)).Reverse();
         var trends = new List<object>();
 
-        foreach (var month in last6Months)
+        if (from.HasValue && to.HasValue)
         {
-            var sales = await _db.ShitjetProduktet
-                .Where(s => s.DataShitjes.Month == month.Month && s.DataShitjes.Year == month.Year)
-                .SumAsync(s => (double)s.CmimiTotal);
-            
-            trends.Add(new { month = month.ToString("MMM"), revenue = sales });
+            // Filtered monthly trend within explicit range
+            var start = new DateTime(from.Value.Year, from.Value.Month, 1);
+            var endExclusive = new DateTime(to.Value.Year, to.Value.Month, 1).AddMonths(1);
+            for (var m = start; m < endExclusive; m = m.AddMonths(1))
+            {
+                var monthEnd = m.AddMonths(1);
+                var sales = await _db.ShitjetProduktet
+                    .Where(s => s.DataShitjes >= m && s.DataShitjes < monthEnd)
+                    .SumAsync(s => (double)s.CmimiTotal);
+                trends.Add(new { month = m.ToString("MMM yy"), revenue = sales });
+            }
+        }
+        else
+        {
+            // Default: last 6 months
+            var last6Months = Enumerable.Range(0, 6).Select(i => DateTime.UtcNow.AddMonths(-i)).Reverse();
+            foreach (var month in last6Months)
+            {
+                var monthStart = new DateTime(month.Year, month.Month, 1);
+                var monthEnd = monthStart.AddMonths(1);
+                var sales = await _db.ShitjetProduktet
+                    .Where(s => s.DataShitjes >= monthStart && s.DataShitjes < monthEnd)
+                    .SumAsync(s => (double)s.CmimiTotal);
+                trends.Add(new { month = month.ToString("MMM"), revenue = sales });
+            }
         }
 
-        // 2. Service Popularity (Top 5)
-        var services = await _db.Terminet
-            .Include(t => t.Sherbimi)
+        // Service popularity, optionally restricted by date range on the termin date
+        IQueryable<WellnessAPI.Models.Domain.Termin> terminetQuery = _db.Terminet.Include(t => t.Sherbimi);
+        if (from.HasValue) terminetQuery = terminetQuery.Where(t => t.DataTerminit >= from.Value.Date);
+        if (to.HasValue) terminetQuery = terminetQuery.Where(t => t.DataTerminit < to.Value.Date.AddDays(1));
+
+        var services = await terminetQuery
             .GroupBy(t => t.Sherbimi.EmriSherbimit)
             .Select(g => new { name = g.Key, value = g.Count() })
             .OrderByDescending(x => x.value)
