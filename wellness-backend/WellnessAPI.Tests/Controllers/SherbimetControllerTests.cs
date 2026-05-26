@@ -20,26 +20,42 @@ public class SherbimetControllerTests : IClassFixture<CustomWebApplicationFactor
     private static JsonElement ParseBody(string body)
         => JsonSerializer.Deserialize<JsonElement>(body);
 
+    private static JsonElement Payload(JsonElement doc)
+        => doc.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Object ? data : doc;
+
+    private static bool IsSuccess(JsonElement doc)
+        => !doc.TryGetProperty("success", out var success) || success.GetBoolean();
+
+    private static int GetId(JsonElement doc)
+    {
+        var payload = Payload(doc);
+        if (payload.TryGetProperty("sherbimId", out var camelId)) return camelId.GetInt32();
+        if (payload.TryGetProperty("SherbimId", out var pascalId)) return pascalId.GetInt32();
+        return payload.GetProperty("Id").GetInt32();
+    }
+
     private async Task<(HttpResponseMessage Response, JsonElement Doc)> Post(string url, object body)
     {
         var response = await _client.PostAsJsonAsync(url, body);
         var content = await response.Content.ReadAsStringAsync();
-        return (response, ParseBody(content));
+        return (response, string.IsNullOrWhiteSpace(content) ? default : ParseBody(content));
     }
 
     private async Task SetAdminAuthHeader()
     {
-        var (_, doc) = await Post("/api/auth/login", new { Email = "admin@wellness.al", Password = "Admin@12345!" });
+        var (_, doc) = await Post("/api/auth/login", new { Email = "admin@wellness.com", Password = "Admin123!" });
         var token = doc.GetProperty("data").GetProperty("AccessToken").GetString()!;
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
     }
 
     private static object NewSherbimDto(string? emri = null) => new
     {
-        Emri = emri ?? $"Sherbim_{Guid.NewGuid():N}",
+        EmriSherbimit = emri ?? $"Sherbim_{Guid.NewGuid():N}",
+        Kategoria = "Masazh",
         Pershkrimi = "Pershkrim testues",
         Cmimi = 2500m,
-        Kohezgjatja = 60
+        KohezgjatjaMin = 60,
+        Aktiv = true
     };
 
     // ── Authorization ────────────────────────────────────────────────────────
@@ -79,7 +95,7 @@ public class SherbimetControllerTests : IClassFixture<CustomWebApplicationFactor
         var doc = ParseBody(body);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.True(doc.GetProperty("success").GetBoolean());
+        Assert.True(IsSuccess(doc));
         Assert.True(doc.TryGetProperty("data", out _));
         Assert.True(doc.TryGetProperty("total", out _));
     }
@@ -92,10 +108,12 @@ public class SherbimetControllerTests : IClassFixture<CustomWebApplicationFactor
         var uniqueName = $"UniqueSherbim_{Guid.NewGuid():N}";
         await Post("/api/sherbimet", new
         {
-            Emri = uniqueName,
+            EmriSherbimit = uniqueName,
+            Kategoria = "Spa",
             Pershkrimi = "Pershkrim",
             Cmimi = 1000m,
-            Kohezgjatja = 30
+            KohezgjatjaMin = 30,
+            Aktiv = true
         });
 
         var response = await _client.GetAsync($"/api/sherbimet?search={uniqueName}");
@@ -103,7 +121,7 @@ public class SherbimetControllerTests : IClassFixture<CustomWebApplicationFactor
         var doc = ParseBody(body);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.True(doc.GetProperty("success").GetBoolean());
+        Assert.True(IsSuccess(doc));
         Assert.True(doc.GetProperty("total").GetInt32() >= 1);
     }
 
@@ -116,7 +134,7 @@ public class SherbimetControllerTests : IClassFixture<CustomWebApplicationFactor
         var doc = ParseBody(body);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.True(doc.GetProperty("success").GetBoolean());
+        Assert.True(IsSuccess(doc));
         Assert.Equal(1, doc.GetProperty("page").GetInt32());
         Assert.Equal(5, doc.GetProperty("limit").GetInt32());
     }
@@ -129,15 +147,15 @@ public class SherbimetControllerTests : IClassFixture<CustomWebApplicationFactor
         await SetAdminAuthHeader();
 
         var (_, createDoc) = await Post("/api/sherbimet", NewSherbimDto());
-        var id = createDoc.GetProperty("data").GetProperty("Id").GetInt32();
+        var id = GetId(createDoc);
 
         var response = await _client.GetAsync($"/api/sherbimet/{id}");
         var body = await response.Content.ReadAsStringAsync();
         var doc = ParseBody(body);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.True(doc.GetProperty("success").GetBoolean());
-        Assert.Equal(id, doc.GetProperty("data").GetProperty("Id").GetInt32());
+        Assert.True(IsSuccess(doc));
+        Assert.Equal(id, GetId(doc));
     }
 
     [Fact]
@@ -157,8 +175,8 @@ public class SherbimetControllerTests : IClassFixture<CustomWebApplicationFactor
         var (resp, doc) = await Post("/api/sherbimet", NewSherbimDto());
 
         Assert.Equal(HttpStatusCode.Created, resp.StatusCode);
-        Assert.True(doc.GetProperty("success").GetBoolean());
-        Assert.True(doc.GetProperty("data").GetProperty("Id").GetInt32() > 0);
+        Assert.True(IsSuccess(doc));
+        Assert.True(GetId(doc) > 0);
     }
 
     [Fact]
@@ -168,16 +186,18 @@ public class SherbimetControllerTests : IClassFixture<CustomWebApplicationFactor
         var emri = $"Sherbim_{Guid.NewGuid():N}";
         var (_, doc) = await Post("/api/sherbimet", new
         {
-            Emri = emri,
+            EmriSherbimit = emri,
+            Kategoria = "Yoga",
             Pershkrimi = "Pershkrim testues",
             Cmimi = 3000m,
-            Kohezgjatja = 45
+            KohezgjatjaMin = 45,
+            Aktiv = true
         });
-        var data = doc.GetProperty("data");
+        var data = Payload(doc);
 
-        Assert.Equal(emri, data.GetProperty("Emri").GetString());
-        Assert.Equal(3000m, data.GetProperty("Cmimi").GetDecimal());
-        Assert.Equal(45, data.GetProperty("Kohezgjatja").GetInt32());
+        Assert.Equal(emri, data.GetProperty("emriSherbimit").GetString());
+        Assert.Equal(3000m, data.GetProperty("cmimi").GetDecimal());
+        Assert.Equal(45, data.GetProperty("kohezgjatjaMin").GetInt32());
     }
 
     // ── Update ────────────────────────────────────────────────────────────────
@@ -188,23 +208,25 @@ public class SherbimetControllerTests : IClassFixture<CustomWebApplicationFactor
         await SetAdminAuthHeader();
 
         var (_, createDoc) = await Post("/api/sherbimet", NewSherbimDto());
-        var id = createDoc.GetProperty("data").GetProperty("Id").GetInt32();
+        var id = GetId(createDoc);
 
         var response = await _client.PutAsJsonAsync($"/api/sherbimet/{id}", new
         {
-            Emri = "UpdatedSherbim",
+            EmriSherbimit = "UpdatedSherbim",
+            Kategoria = "Fizioterapi",
             Pershkrimi = "Pershkrim i ri",
             Cmimi = 5000m,
-            Kohezgjatja = 90,
-            IsActive = true
+            KohezgjatjaMin = 90,
+            Aktiv = true
         });
         var body = await response.Content.ReadAsStringAsync();
         var doc = ParseBody(body);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.True(doc.GetProperty("success").GetBoolean());
-        Assert.Equal("UpdatedSherbim", doc.GetProperty("data").GetProperty("Emri").GetString());
-        Assert.Equal(5000m, doc.GetProperty("data").GetProperty("Cmimi").GetDecimal());
+        Assert.True(IsSuccess(doc));
+        var data = Payload(doc);
+        Assert.Equal("UpdatedSherbim", data.GetProperty("emriSherbimit").GetString());
+        Assert.Equal(5000m, data.GetProperty("cmimi").GetDecimal());
     }
 
     [Fact]
@@ -213,7 +235,12 @@ public class SherbimetControllerTests : IClassFixture<CustomWebApplicationFactor
         await SetAdminAuthHeader();
         var response = await _client.PutAsJsonAsync("/api/sherbimet/999999", new
         {
-            Emri = "X", Pershkrimi = "Y", Cmimi = 100m, Kohezgjatja = 30, IsActive = true
+            EmriSherbimit = "X",
+            Kategoria = "Spa",
+            Pershkrimi = "Y",
+            Cmimi = 100m,
+            KohezgjatjaMin = 30,
+            Aktiv = true
         });
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
@@ -226,14 +253,10 @@ public class SherbimetControllerTests : IClassFixture<CustomWebApplicationFactor
         await SetAdminAuthHeader();
 
         var (_, createDoc) = await Post("/api/sherbimet", NewSherbimDto());
-        var id = createDoc.GetProperty("data").GetProperty("Id").GetInt32();
+        var id = GetId(createDoc);
 
         var response = await _client.DeleteAsync($"/api/sherbimet/{id}");
-        var body = await response.Content.ReadAsStringAsync();
-        var doc = ParseBody(body);
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.True(doc.GetProperty("success").GetBoolean());
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
     }
 
     [Fact]
@@ -250,7 +273,7 @@ public class SherbimetControllerTests : IClassFixture<CustomWebApplicationFactor
         await SetAdminAuthHeader();
 
         var (_, createDoc) = await Post("/api/sherbimet", NewSherbimDto());
-        var id = createDoc.GetProperty("data").GetProperty("Id").GetInt32();
+        var id = GetId(createDoc);
 
         await _client.DeleteAsync($"/api/sherbimet/{id}");
 

@@ -54,7 +54,7 @@ public class ErrorHandlingMiddlewareTests
     {
         var (_, body) = await InvokeWith(_ => throw new UnauthorizedAccessException("test"));
         var doc = JsonSerializer.Deserialize<JsonElement>(body);
-        Assert.Contains("autorizim", doc.GetProperty("error").GetString());
+        Assert.Contains("lejohet", doc.GetProperty("message").GetString());
     }
 
     [Fact]
@@ -77,8 +77,8 @@ public class ErrorHandlingMiddlewareTests
     {
         var (_, body) = await InvokeWith(_ => throw new Exception("boom"));
         var doc = JsonSerializer.Deserialize<JsonElement>(body);
-        var error = doc.GetProperty("error").GetString();
-        Assert.Contains("gabim", error);
+        var message = doc.GetProperty("message").GetString();
+        Assert.Contains("gabim", message);
     }
 
     [Fact]

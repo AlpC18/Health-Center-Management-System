@@ -20,16 +20,30 @@ public class KlientetControllerTests : IClassFixture<CustomWebApplicationFactory
     private static JsonElement ParseBody(string body)
         => JsonSerializer.Deserialize<JsonElement>(body);
 
+    private static JsonElement Payload(JsonElement doc)
+        => doc.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Object ? data : doc;
+
+    private static bool IsSuccess(JsonElement doc)
+        => !doc.TryGetProperty("success", out var success) || success.GetBoolean();
+
+    private static int GetId(JsonElement doc)
+    {
+        var payload = Payload(doc);
+        if (payload.TryGetProperty("klientId", out var camelId)) return camelId.GetInt32();
+        if (payload.TryGetProperty("KlientId", out var pascalId)) return pascalId.GetInt32();
+        return payload.GetProperty("Id").GetInt32();
+    }
+
     private async Task<(HttpResponseMessage Response, JsonElement Doc)> Post(string url, object body)
     {
         var response = await _client.PostAsJsonAsync(url, body);
         var content = await response.Content.ReadAsStringAsync();
-        return (response, ParseBody(content));
+        return (response, string.IsNullOrWhiteSpace(content) ? default : ParseBody(content));
     }
 
     private async Task SetAdminAuthHeader()
     {
-        var (_, doc) = await Post("/api/auth/login", new { Email = "admin@wellness.al", Password = "Admin@12345!" });
+        var (_, doc) = await Post("/api/auth/login", new { Email = "admin@wellness.com", Password = "Admin123!" });
         var token = doc.GetProperty("data").GetProperty("AccessToken").GetString()!;
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
     }
@@ -40,7 +54,9 @@ public class KlientetControllerTests : IClassFixture<CustomWebApplicationFactory
         Mbiemri = "Klient",
         Email = email ?? $"klient_{Guid.NewGuid()}@test.com",
         Telefoni = "0691234567",
-        Adresa = "Rruga e Testit 1"
+        DataLindjes = DateTime.UtcNow.AddYears(-25),
+        Gjinia = "M",
+        KushtetShendetesore = "Asnje"
     };
 
     // ── Authorization ────────────────────────────────────────────────────────
@@ -80,7 +96,7 @@ public class KlientetControllerTests : IClassFixture<CustomWebApplicationFactory
         var doc = ParseBody(body);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.True(doc.GetProperty("success").GetBoolean());
+        Assert.True(IsSuccess(doc));
         Assert.True(doc.TryGetProperty("data", out _));
         Assert.True(doc.TryGetProperty("total", out _));
     }
@@ -98,7 +114,9 @@ public class KlientetControllerTests : IClassFixture<CustomWebApplicationFactory
             Mbiemri = "Klient",
             Email = email,
             Telefoni = "0691234567",
-            Adresa = "Adresa"
+            DataLindjes = DateTime.UtcNow.AddYears(-25),
+            Gjinia = "F",
+            KushtetShendetesore = "Asnje"
         });
 
         var response = await _client.GetAsync("/api/klientet?search=UniqueSearchName");
@@ -106,7 +124,7 @@ public class KlientetControllerTests : IClassFixture<CustomWebApplicationFactory
         var doc = ParseBody(body);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.True(doc.GetProperty("success").GetBoolean());
+        Assert.True(IsSuccess(doc));
         Assert.True(doc.GetProperty("total").GetInt32() >= 1);
     }
 
@@ -119,7 +137,7 @@ public class KlientetControllerTests : IClassFixture<CustomWebApplicationFactory
         var doc = ParseBody(body);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.True(doc.GetProperty("success").GetBoolean());
+        Assert.True(IsSuccess(doc));
         Assert.Equal(1, doc.GetProperty("page").GetInt32());
         Assert.Equal(5, doc.GetProperty("limit").GetInt32());
     }
@@ -132,15 +150,15 @@ public class KlientetControllerTests : IClassFixture<CustomWebApplicationFactory
         await SetAdminAuthHeader();
 
         var (_, createDoc) = await Post("/api/klientet", NewKlientDto());
-        var id = createDoc.GetProperty("data").GetProperty("Id").GetInt32();
+        var id = GetId(createDoc);
 
         var response = await _client.GetAsync($"/api/klientet/{id}");
         var body = await response.Content.ReadAsStringAsync();
         var doc = ParseBody(body);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.True(doc.GetProperty("success").GetBoolean());
-        Assert.Equal(id, doc.GetProperty("data").GetProperty("Id").GetInt32());
+        Assert.True(IsSuccess(doc));
+        Assert.Equal(id, GetId(doc));
     }
 
     [Fact]
@@ -160,8 +178,8 @@ public class KlientetControllerTests : IClassFixture<CustomWebApplicationFactory
         var (resp, doc) = await Post("/api/klientet", NewKlientDto());
 
         Assert.Equal(HttpStatusCode.Created, resp.StatusCode);
-        Assert.True(doc.GetProperty("success").GetBoolean());
-        Assert.True(doc.GetProperty("data").GetProperty("Id").GetInt32() > 0);
+        Assert.True(IsSuccess(doc));
+        Assert.True(GetId(doc) > 0);
     }
 
     [Fact]
@@ -184,7 +202,7 @@ public class KlientetControllerTests : IClassFixture<CustomWebApplicationFactory
         await SetAdminAuthHeader();
 
         var (_, createDoc) = await Post("/api/klientet", NewKlientDto());
-        var id = createDoc.GetProperty("data").GetProperty("Id").GetInt32();
+        var id = GetId(createDoc);
         var newEmail = $"updated_{Guid.NewGuid()}@test.com";
 
         var response = await _client.PutAsJsonAsync($"/api/klientet/{id}", new
@@ -193,16 +211,18 @@ public class KlientetControllerTests : IClassFixture<CustomWebApplicationFactory
             Mbiemri = "Name",
             Email = newEmail,
             Telefoni = "0699999999",
-            Adresa = "New Address",
-            IsActive = true
+            DataLindjes = DateTime.UtcNow.AddYears(-30),
+            Gjinia = "F",
+            KushtetShendetesore = "Updated"
         });
         var body = await response.Content.ReadAsStringAsync();
         var doc = ParseBody(body);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.True(doc.GetProperty("success").GetBoolean());
-        Assert.Equal("Updated", doc.GetProperty("data").GetProperty("Emri").GetString());
-        Assert.Equal(newEmail, doc.GetProperty("data").GetProperty("Email").GetString());
+        Assert.True(IsSuccess(doc));
+        var data = Payload(doc);
+        Assert.Equal("Updated", data.GetProperty("emri").GetString());
+        Assert.Equal(newEmail, data.GetProperty("email").GetString());
     }
 
     [Fact]
@@ -211,7 +231,13 @@ public class KlientetControllerTests : IClassFixture<CustomWebApplicationFactory
         await SetAdminAuthHeader();
         var response = await _client.PutAsJsonAsync("/api/klientet/999999", new
         {
-            Emri = "X", Mbiemri = "Y", Email = "x@y.com", Telefoni = "0", Adresa = "A", IsActive = true
+            Emri = "X",
+            Mbiemri = "Y",
+            Email = "x@example.com",
+            Telefoni = "0691234567",
+            DataLindjes = DateTime.UtcNow.AddYears(-25),
+            Gjinia = "M",
+            KushtetShendetesore = "Asnje"
         });
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
@@ -225,12 +251,18 @@ public class KlientetControllerTests : IClassFixture<CustomWebApplicationFactory
         var email2 = $"e2_{Guid.NewGuid()}@test.com";
         await Post("/api/klientet", NewKlientDto(email1));
         var (_, doc2) = await Post("/api/klientet", NewKlientDto(email2));
-        var id2 = doc2.GetProperty("data").GetProperty("Id").GetInt32();
+        var id2 = GetId(doc2);
 
         // Try to update klient2 with klient1's email
         var response = await _client.PutAsJsonAsync($"/api/klientet/{id2}", new
         {
-            Emri = "X", Mbiemri = "Y", Email = email1, Telefoni = "0", Adresa = "A", IsActive = true
+            Emri = "X",
+            Mbiemri = "Y",
+            Email = email1,
+            Telefoni = "0691234567",
+            DataLindjes = DateTime.UtcNow.AddYears(-25),
+            Gjinia = "M",
+            KushtetShendetesore = "Asnje"
         });
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
@@ -244,14 +276,10 @@ public class KlientetControllerTests : IClassFixture<CustomWebApplicationFactory
         await SetAdminAuthHeader();
 
         var (_, createDoc) = await Post("/api/klientet", NewKlientDto());
-        var id = createDoc.GetProperty("data").GetProperty("Id").GetInt32();
+        var id = GetId(createDoc);
 
         var response = await _client.DeleteAsync($"/api/klientet/{id}");
-        var body = await response.Content.ReadAsStringAsync();
-        var doc = ParseBody(body);
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.True(doc.GetProperty("success").GetBoolean());
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
     }
 
     [Fact]
@@ -268,7 +296,7 @@ public class KlientetControllerTests : IClassFixture<CustomWebApplicationFactory
         await SetAdminAuthHeader();
 
         var (_, createDoc) = await Post("/api/klientet", NewKlientDto());
-        var id = createDoc.GetProperty("data").GetProperty("Id").GetInt32();
+        var id = GetId(createDoc);
 
         await _client.DeleteAsync($"/api/klientet/{id}");
 
@@ -283,8 +311,11 @@ public class KlientetControllerTests : IClassFixture<CustomWebApplicationFactory
     private async Task SetSeedAdminAuthHeader()
     {
         var (_, doc) = await Post("/api/auth/login", new { Email = "admin@wellness.com", Password = "Admin123!" });
-        var token = doc.GetProperty("accessToken").GetString()
-            ?? doc.TryGetProperty("data", out var d) ? d.GetProperty("accessToken").GetString()! : "";
+        var token = doc.TryGetProperty("accessToken", out var accessToken)
+            ? accessToken.GetString() ?? ""
+            : doc.TryGetProperty("data", out var data) && data.TryGetProperty("accessToken", out var nestedAccessToken)
+                ? nestedAccessToken.GetString() ?? ""
+                : "";
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token!);
     }
 

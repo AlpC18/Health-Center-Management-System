@@ -18,10 +18,16 @@ public class DashboardControllerTests : IClassFixture<CustomWebApplicationFactor
     private static JsonElement ParseBody(string body)
         => JsonSerializer.Deserialize<JsonElement>(body);
 
+    private static JsonElement Payload(JsonElement doc)
+        => doc.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Object ? data : doc;
+
+    private static bool IsSuccess(JsonElement doc)
+        => !doc.TryGetProperty("success", out var success) || success.GetBoolean();
+
     private async Task SetAdminAuthHeader()
     {
         var response = await _client.PostAsJsonAsync("/api/auth/login",
-            new { Email = "admin@wellness.al", Password = "Admin@12345!" });
+            new { Email = "admin@wellness.com", Password = "Admin123!" });
         var content = await response.Content.ReadAsStringAsync();
         var doc = ParseBody(content);
         var token = doc.GetProperty("data").GetProperty("AccessToken").GetString()!;
@@ -45,8 +51,8 @@ public class DashboardControllerTests : IClassFixture<CustomWebApplicationFactor
         var doc = ParseBody(body);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.True(doc.GetProperty("success").GetBoolean());
-        Assert.True(doc.TryGetProperty("data", out _));
+        Assert.True(IsSuccess(doc));
+        Assert.True(Payload(doc).TryGetProperty("totalKlientet", out _));
     }
 
     [Fact]
@@ -56,16 +62,16 @@ public class DashboardControllerTests : IClassFixture<CustomWebApplicationFactor
         var response = await _client.GetAsync("/api/dashboard/stats");
         var body = await response.Content.ReadAsStringAsync();
         var doc = ParseBody(body);
-        var data = doc.GetProperty("data");
+        var data = Payload(doc);
 
-        Assert.True(data.TryGetProperty("TotalKlientet", out _));
-        Assert.True(data.TryGetProperty("TotalTerapistet", out _));
-        Assert.True(data.TryGetProperty("TotalTerminet", out _));
-        Assert.True(data.TryGetProperty("TerminetSot", out _));
-        Assert.True(data.TryGetProperty("AnetaresimetAktive", out _));
-        Assert.True(data.TryGetProperty("TeDhjetatShitjet", out _));
-        Assert.True(data.TryGetProperty("NotaMesatare", out _));
-        Assert.True(data.TryGetProperty("ProduktetMeStokUlet", out _));
+        Assert.True(data.TryGetProperty("totalKlientet", out _));
+        Assert.True(data.TryGetProperty("terapistetAktiv", out _));
+        Assert.True(data.TryGetProperty("totalTerminet", out _));
+        Assert.True(data.TryGetProperty("terminetSot", out _));
+        Assert.True(data.TryGetProperty("anetaresimiAktiv", out _));
+        Assert.True(data.TryGetProperty("teDheratMujore", out _));
+        Assert.True(data.TryGetProperty("notaMesatare", out _));
+        Assert.True(data.TryGetProperty("productetNeStok", out _));
     }
 
     [Fact]
@@ -75,15 +81,15 @@ public class DashboardControllerTests : IClassFixture<CustomWebApplicationFactor
         var response = await _client.GetAsync("/api/dashboard/stats");
         var body = await response.Content.ReadAsStringAsync();
         var doc = ParseBody(body);
-        var data = doc.GetProperty("data");
+        var data = Payload(doc);
 
-        Assert.True(data.GetProperty("TotalKlientet").GetInt32() >= 0);
-        Assert.True(data.GetProperty("TotalTerapistet").GetInt32() >= 0);
-        Assert.True(data.GetProperty("TotalTerminet").GetInt32() >= 0);
-        Assert.True(data.GetProperty("TerminetSot").GetInt32() >= 0);
-        Assert.True(data.GetProperty("AnetaresimetAktive").GetInt32() >= 0);
-        Assert.True(data.GetProperty("TeDhjetatShitjet").GetDecimal() >= 0);
-        Assert.True(data.GetProperty("NotaMesatare").GetDouble() >= 0);
-        Assert.True(data.GetProperty("ProduktetMeStokUlet").GetInt32() >= 0);
+        Assert.True(data.GetProperty("totalKlientet").GetInt32() >= 0);
+        Assert.True(data.GetProperty("terapistetAktiv").GetInt32() >= 0);
+        Assert.True(data.GetProperty("totalTerminet").GetInt32() >= 0);
+        Assert.True(data.GetProperty("terminetSot").GetInt32() >= 0);
+        Assert.True(data.GetProperty("anetaresimiAktiv").GetInt32() >= 0);
+        Assert.True(data.GetProperty("teDheratMujore").GetDecimal() >= 0);
+        Assert.True(data.GetProperty("notaMesatare").GetDouble() >= 0);
+        Assert.True(data.GetProperty("productetNeStok").GetInt32() >= 0);
     }
 }

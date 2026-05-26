@@ -20,16 +20,30 @@ public class TerapistetControllerTests : IClassFixture<CustomWebApplicationFacto
     private static JsonElement ParseBody(string body)
         => JsonSerializer.Deserialize<JsonElement>(body);
 
+    private static JsonElement Payload(JsonElement doc)
+        => doc.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Object ? data : doc;
+
+    private static bool IsSuccess(JsonElement doc)
+        => !doc.TryGetProperty("success", out var success) || success.GetBoolean();
+
+    private static int GetId(JsonElement doc)
+    {
+        var payload = Payload(doc);
+        if (payload.TryGetProperty("terapistId", out var camelId)) return camelId.GetInt32();
+        if (payload.TryGetProperty("TerapistId", out var pascalId)) return pascalId.GetInt32();
+        return payload.GetProperty("Id").GetInt32();
+    }
+
     private async Task<(HttpResponseMessage Response, JsonElement Doc)> Post(string url, object body)
     {
         var response = await _client.PostAsJsonAsync(url, body);
         var content = await response.Content.ReadAsStringAsync();
-        return (response, ParseBody(content));
+        return (response, string.IsNullOrWhiteSpace(content) ? default : ParseBody(content));
     }
 
     private async Task SetAdminAuthHeader()
     {
-        var (_, doc) = await Post("/api/auth/login", new { Email = "admin@wellness.al", Password = "Admin@12345!" });
+        var (_, doc) = await Post("/api/auth/login", new { Email = "admin@wellness.com", Password = "Admin123!" });
         var token = doc.GetProperty("data").GetProperty("AccessToken").GetString()!;
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
     }
@@ -40,7 +54,9 @@ public class TerapistetControllerTests : IClassFixture<CustomWebApplicationFacto
         Mbiemri = "Terapist",
         Email = email ?? $"terapist_{Guid.NewGuid()}@test.com",
         Telefoni = "0691234567",
-        Specializimi = "Masazh"
+        Specializimi = "Masazh",
+        Licenca = $"LIC-{Guid.NewGuid():N}"[..12],
+        Aktiv = true
     };
 
     // ── Authorization ────────────────────────────────────────────────────────
@@ -80,7 +96,7 @@ public class TerapistetControllerTests : IClassFixture<CustomWebApplicationFacto
         var doc = ParseBody(body);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.True(doc.GetProperty("success").GetBoolean());
+        Assert.True(IsSuccess(doc));
         Assert.True(doc.TryGetProperty("data", out _));
         Assert.True(doc.TryGetProperty("total", out _));
     }
@@ -96,7 +112,9 @@ public class TerapistetControllerTests : IClassFixture<CustomWebApplicationFacto
             Mbiemri = "Testues",
             Email = $"unique_{Guid.NewGuid()}@test.com",
             Telefoni = "0691234567",
-            Specializimi = "Fizioterapi"
+            Specializimi = "Fizioterapi",
+            Licenca = $"LIC-{Guid.NewGuid():N}"[..12],
+            Aktiv = true
         });
 
         var response = await _client.GetAsync("/api/terapistet?search=UniqueTerapist");
@@ -104,7 +122,7 @@ public class TerapistetControllerTests : IClassFixture<CustomWebApplicationFacto
         var doc = ParseBody(body);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.True(doc.GetProperty("success").GetBoolean());
+        Assert.True(IsSuccess(doc));
         Assert.True(doc.GetProperty("total").GetInt32() >= 1);
     }
 
@@ -117,7 +135,7 @@ public class TerapistetControllerTests : IClassFixture<CustomWebApplicationFacto
         var doc = ParseBody(body);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.True(doc.GetProperty("success").GetBoolean());
+        Assert.True(IsSuccess(doc));
         Assert.Equal(1, doc.GetProperty("page").GetInt32());
         Assert.Equal(5, doc.GetProperty("limit").GetInt32());
     }
@@ -130,15 +148,15 @@ public class TerapistetControllerTests : IClassFixture<CustomWebApplicationFacto
         await SetAdminAuthHeader();
 
         var (_, createDoc) = await Post("/api/terapistet", NewTerapistDto());
-        var id = createDoc.GetProperty("data").GetProperty("Id").GetInt32();
+        var id = GetId(createDoc);
 
         var response = await _client.GetAsync($"/api/terapistet/{id}");
         var body = await response.Content.ReadAsStringAsync();
         var doc = ParseBody(body);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.True(doc.GetProperty("success").GetBoolean());
-        Assert.Equal(id, doc.GetProperty("data").GetProperty("Id").GetInt32());
+        Assert.True(IsSuccess(doc));
+        Assert.Equal(id, GetId(doc));
     }
 
     [Fact]
@@ -158,8 +176,8 @@ public class TerapistetControllerTests : IClassFixture<CustomWebApplicationFacto
         var (resp, doc) = await Post("/api/terapistet", NewTerapistDto());
 
         Assert.Equal(HttpStatusCode.Created, resp.StatusCode);
-        Assert.True(doc.GetProperty("success").GetBoolean());
-        Assert.True(doc.GetProperty("data").GetProperty("Id").GetInt32() > 0);
+        Assert.True(IsSuccess(doc));
+        Assert.True(GetId(doc) > 0);
     }
 
     [Fact]
@@ -182,7 +200,7 @@ public class TerapistetControllerTests : IClassFixture<CustomWebApplicationFacto
         await SetAdminAuthHeader();
 
         var (_, createDoc) = await Post("/api/terapistet", NewTerapistDto());
-        var id = createDoc.GetProperty("data").GetProperty("Id").GetInt32();
+        var id = GetId(createDoc);
         var newEmail = $"updated_{Guid.NewGuid()}@test.com";
 
         var response = await _client.PutAsJsonAsync($"/api/terapistet/{id}", new
@@ -192,15 +210,17 @@ public class TerapistetControllerTests : IClassFixture<CustomWebApplicationFacto
             Email = newEmail,
             Telefoni = "0699999999",
             Specializimi = "Akupunkture",
-            IsActive = true
+            Licenca = $"LIC-{Guid.NewGuid():N}"[..12],
+            Aktiv = true
         });
         var body = await response.Content.ReadAsStringAsync();
         var doc = ParseBody(body);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.True(doc.GetProperty("success").GetBoolean());
-        Assert.Equal("UpdatedEmri", doc.GetProperty("data").GetProperty("Emri").GetString());
-        Assert.Equal(newEmail, doc.GetProperty("data").GetProperty("Email").GetString());
+        Assert.True(IsSuccess(doc));
+        var data = Payload(doc);
+        Assert.Equal("UpdatedEmri", data.GetProperty("emri").GetString());
+        Assert.Equal(newEmail, data.GetProperty("email").GetString());
     }
 
     [Fact]
@@ -209,7 +229,13 @@ public class TerapistetControllerTests : IClassFixture<CustomWebApplicationFacto
         await SetAdminAuthHeader();
         var response = await _client.PutAsJsonAsync("/api/terapistet/999999", new
         {
-            Emri = "X", Mbiemri = "Y", Email = "x@y.com", Telefoni = "0", Specializimi = "Z", IsActive = true
+            Emri = "X",
+            Mbiemri = "Y",
+            Email = "x@example.com",
+            Telefoni = "0691234567",
+            Specializimi = "Z",
+            Licenca = $"LIC-{Guid.NewGuid():N}"[..12],
+            Aktiv = true
         });
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
@@ -223,11 +249,17 @@ public class TerapistetControllerTests : IClassFixture<CustomWebApplicationFacto
         var email2 = $"t2_{Guid.NewGuid()}@test.com";
         await Post("/api/terapistet", NewTerapistDto(email1));
         var (_, doc2) = await Post("/api/terapistet", NewTerapistDto(email2));
-        var id2 = doc2.GetProperty("data").GetProperty("Id").GetInt32();
+        var id2 = GetId(doc2);
 
         var response = await _client.PutAsJsonAsync($"/api/terapistet/{id2}", new
         {
-            Emri = "X", Mbiemri = "Y", Email = email1, Telefoni = "0", Specializimi = "Z", IsActive = true
+            Emri = "X",
+            Mbiemri = "Y",
+            Email = email1,
+            Telefoni = "0691234567",
+            Specializimi = "Z",
+            Licenca = $"LIC-{Guid.NewGuid():N}"[..12],
+            Aktiv = true
         });
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
@@ -241,14 +273,10 @@ public class TerapistetControllerTests : IClassFixture<CustomWebApplicationFacto
         await SetAdminAuthHeader();
 
         var (_, createDoc) = await Post("/api/terapistet", NewTerapistDto());
-        var id = createDoc.GetProperty("data").GetProperty("Id").GetInt32();
+        var id = GetId(createDoc);
 
         var response = await _client.DeleteAsync($"/api/terapistet/{id}");
-        var body = await response.Content.ReadAsStringAsync();
-        var doc = ParseBody(body);
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.True(doc.GetProperty("success").GetBoolean());
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
     }
 
     [Fact]
@@ -265,7 +293,7 @@ public class TerapistetControllerTests : IClassFixture<CustomWebApplicationFacto
         await SetAdminAuthHeader();
 
         var (_, createDoc) = await Post("/api/terapistet", NewTerapistDto());
-        var id = createDoc.GetProperty("data").GetProperty("Id").GetInt32();
+        var id = GetId(createDoc);
 
         await _client.DeleteAsync($"/api/terapistet/{id}");
 

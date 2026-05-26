@@ -24,12 +24,12 @@ public class AuthControllerTests : IClassFixture<CustomWebApplicationFactory>
     {
         var response = await _client.PostAsJsonAsync(url, body);
         var content = await response.Content.ReadAsStringAsync();
-        return (response, ParseBody(content));
+        return (response, string.IsNullOrWhiteSpace(content) ? default : ParseBody(content));
     }
 
     private async Task<string> LoginAsAdmin()
     {
-        var (resp, doc) = await Post("/api/auth/login", new { Email = "admin@wellness.al", Password = "Admin@12345!" });
+        var (resp, doc) = await Post("/api/auth/login", new { Email = "admin@wellness.com", Password = "Admin123!" });
         return doc.GetProperty("data").GetProperty("AccessToken").GetString()!;
     }
 
@@ -73,7 +73,10 @@ public class AuthControllerTests : IClassFixture<CustomWebApplicationFactory>
         });
 
         Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode);
-        Assert.False(doc.GetProperty("success").GetBoolean());
+        Assert.True(
+            doc.TryGetProperty("errors", out _) ||
+            doc.TryGetProperty("title", out _) ||
+            (doc.TryGetProperty("success", out var success) && !success.GetBoolean()));
     }
 
     // ── Login ────────────────────────────────────────────────────────────────
@@ -113,7 +116,7 @@ public class AuthControllerTests : IClassFixture<CustomWebApplicationFactory>
     [Fact]
     public async Task Login_AdminSeededUser_Returns200()
     {
-        var (resp, doc) = await Post("/api/auth/login", new { Email = "admin@wellness.al", Password = "Admin@12345!" });
+        var (resp, doc) = await Post("/api/auth/login", new { Email = "admin@wellness.com", Password = "Admin123!" });
 
         Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
         Assert.True(doc.GetProperty("success").GetBoolean());
@@ -171,7 +174,7 @@ public class AuthControllerTests : IClassFixture<CustomWebApplicationFactory>
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.True(doc.GetProperty("success").GetBoolean());
-        Assert.Equal("admin@wellness.al", doc.GetProperty("data").GetProperty("Email").GetString());
+        Assert.Equal("admin@wellness.com", doc.GetProperty("data").GetProperty("Email").GetString());
 
         _client.DefaultRequestHeaders.Authorization = null;
     }

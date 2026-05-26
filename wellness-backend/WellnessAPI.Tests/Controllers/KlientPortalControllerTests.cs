@@ -22,7 +22,7 @@ public class KlientPortalControllerTests : IClassFixture<CustomWebApplicationFac
     {
         var response = await _client.PostAsJsonAsync(url, body);
         var content = await response.Content.ReadAsStringAsync();
-        return (response, ParseBody(content));
+        return (response, string.IsNullOrWhiteSpace(content) ? default : ParseBody(content));
     }
 
     private async Task SetAdminAuthHeader()

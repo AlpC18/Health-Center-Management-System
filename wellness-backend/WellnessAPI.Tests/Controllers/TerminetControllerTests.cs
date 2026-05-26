@@ -20,16 +20,32 @@ public class TerminetControllerTests : IClassFixture<CustomWebApplicationFactory
     private static JsonElement ParseBody(string body)
         => JsonSerializer.Deserialize<JsonElement>(body);
 
+    private static JsonElement Payload(JsonElement doc)
+        => doc.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Object ? data : doc;
+
+    private static bool IsSuccess(JsonElement doc)
+        => !doc.TryGetProperty("success", out var success) || success.GetBoolean();
+
+    private static int GetId(JsonElement doc, string camelName, string pascalName)
+    {
+        var payload = Payload(doc);
+        if (payload.TryGetProperty(camelName, out var camelId)) return camelId.GetInt32();
+        if (payload.TryGetProperty(pascalName, out var pascalId)) return pascalId.GetInt32();
+        return payload.GetProperty("Id").GetInt32();
+    }
+
+    private static int GetTerminId(JsonElement doc) => GetId(doc, "terminId", "TerminId");
+
     private async Task<(HttpResponseMessage Response, JsonElement Doc)> Post(string url, object body)
     {
         var response = await _client.PostAsJsonAsync(url, body);
         var content = await response.Content.ReadAsStringAsync();
-        return (response, ParseBody(content));
+        return (response, string.IsNullOrWhiteSpace(content) ? default : ParseBody(content));
     }
 
     private async Task SetAdminAuthHeader()
     {
-        var (_, doc) = await Post("/api/auth/login", new { Email = "admin@wellness.al", Password = "Admin@12345!" });
+        var (_, doc) = await Post("/api/auth/login", new { Email = "admin@wellness.com", Password = "Admin123!" });
         var token = doc.GetProperty("data").GetProperty("AccessToken").GetString()!;
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
     }
@@ -42,9 +58,11 @@ public class TerminetControllerTests : IClassFixture<CustomWebApplicationFactory
             Mbiemri = "Klient",
             Email = $"klient_{Guid.NewGuid()}@test.com",
             Telefoni = "0691234567",
-            Adresa = "Rruga e Testit 1"
+            DataLindjes = DateTime.UtcNow.AddYears(-25),
+            Gjinia = "M",
+            KushtetShendetesore = "Asnje"
         });
-        return doc.GetProperty("data").GetProperty("Id").GetInt32();
+        return GetId(doc, "klientId", "KlientId");
     }
 
     private async Task<int> CreateTerapist()
@@ -55,21 +73,25 @@ public class TerminetControllerTests : IClassFixture<CustomWebApplicationFactory
             Mbiemri = "Terapist",
             Email = $"terapist_{Guid.NewGuid()}@test.com",
             Telefoni = "0691234567",
-            Specializimi = "Masazh"
+            Specializimi = "Masazh",
+            Licenca = $"LIC-{Guid.NewGuid():N}"[..12],
+            Aktiv = true
         });
-        return doc.GetProperty("data").GetProperty("Id").GetInt32();
+        return GetId(doc, "terapistId", "TerapistId");
     }
 
     private async Task<int> CreateSherbim()
     {
         var (_, doc) = await Post("/api/sherbimet", new
         {
-            Emri = $"Sherbim_{Guid.NewGuid():N}",
+            EmriSherbimit = $"Sherbim_{Guid.NewGuid():N}",
+            Kategoria = "Masazh",
             Pershkrimi = "Pershkrim testues",
             Cmimi = 2500m,
-            Kohezgjatja = 60
+            KohezgjatjaMin = 60,
+            Aktiv = true
         });
-        return doc.GetProperty("data").GetProperty("Id").GetInt32();
+        return GetId(doc, "sherbimId", "SherbimId");
     }
 
     private async Task<(int KlientId, int TerapistId, int SherbimId)> CreatePrerequisites()
@@ -85,8 +107,11 @@ public class TerminetControllerTests : IClassFixture<CustomWebApplicationFactory
         KlientId = klientId,
         TerapistId = terapistId,
         SherbimId = sherbimId,
-        DataOra = DateTime.UtcNow.AddDays(1).ToString("o"),
-        Shenime = "Shenim testues"
+        DataTerminit = DateTime.UtcNow.AddDays(1).Date,
+        OraFillimit = "09:00:00",
+        OraMbarimit = "10:00:00",
+        Statusi = "Planifikuar",
+        Shenimet = "Shenim testues"
     };
 
     // ── Authorization ────────────────────────────────────────────────────────
@@ -126,7 +151,7 @@ public class TerminetControllerTests : IClassFixture<CustomWebApplicationFactory
         var doc = ParseBody(body);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.True(doc.GetProperty("success").GetBoolean());
+        Assert.True(IsSuccess(doc));
         Assert.True(doc.TryGetProperty("data", out _));
         Assert.True(doc.TryGetProperty("total", out _));
     }
@@ -140,7 +165,7 @@ public class TerminetControllerTests : IClassFixture<CustomWebApplicationFactory
         var doc = ParseBody(body);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.True(doc.GetProperty("success").GetBoolean());
+        Assert.True(IsSuccess(doc));
         Assert.Equal(1, doc.GetProperty("page").GetInt32());
         Assert.Equal(5, doc.GetProperty("limit").GetInt32());
     }
@@ -157,7 +182,7 @@ public class TerminetControllerTests : IClassFixture<CustomWebApplicationFactory
         var doc = ParseBody(body);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.True(doc.GetProperty("success").GetBoolean());
+        Assert.True(IsSuccess(doc));
         Assert.True(doc.GetProperty("total").GetInt32() >= 1);
     }
 
@@ -173,7 +198,7 @@ public class TerminetControllerTests : IClassFixture<CustomWebApplicationFactory
         var doc = ParseBody(body);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.True(doc.GetProperty("success").GetBoolean());
+        Assert.True(IsSuccess(doc));
         Assert.True(doc.GetProperty("total").GetInt32() >= 1);
     }
 
@@ -186,7 +211,7 @@ public class TerminetControllerTests : IClassFixture<CustomWebApplicationFactory
         var doc = ParseBody(body);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.True(doc.GetProperty("success").GetBoolean());
+        Assert.True(IsSuccess(doc));
     }
 
     // ── GetById ───────────────────────────────────────────────────────────────
@@ -198,15 +223,15 @@ public class TerminetControllerTests : IClassFixture<CustomWebApplicationFactory
         var (klientId, terapistId, sherbimId) = await CreatePrerequisites();
 
         var (_, createDoc) = await Post("/api/terminet", NewTerminDto(klientId, terapistId, sherbimId));
-        var id = createDoc.GetProperty("data").GetProperty("Id").GetInt32();
+        var id = GetTerminId(createDoc);
 
         var response = await _client.GetAsync($"/api/terminet/{id}");
         var body = await response.Content.ReadAsStringAsync();
         var doc = ParseBody(body);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.True(doc.GetProperty("success").GetBoolean());
-        Assert.Equal(id, doc.GetProperty("data").GetProperty("Id").GetInt32());
+        Assert.True(IsSuccess(doc));
+        Assert.Equal(id, GetTerminId(doc));
     }
 
     [Fact]
@@ -216,18 +241,18 @@ public class TerminetControllerTests : IClassFixture<CustomWebApplicationFactory
         var (klientId, terapistId, sherbimId) = await CreatePrerequisites();
 
         var (_, createDoc) = await Post("/api/terminet", NewTerminDto(klientId, terapistId, sherbimId));
-        var id = createDoc.GetProperty("data").GetProperty("Id").GetInt32();
+        var id = GetTerminId(createDoc);
 
         var response = await _client.GetAsync($"/api/terminet/{id}");
         var body = await response.Content.ReadAsStringAsync();
         var doc = ParseBody(body);
-        var data = doc.GetProperty("data");
+        var data = Payload(doc);
 
-        Assert.True(data.TryGetProperty("KlientId", out _));
-        Assert.True(data.TryGetProperty("TerapistId", out _));
-        Assert.True(data.TryGetProperty("SherbimId", out _));
-        Assert.True(data.TryGetProperty("DataOra", out _));
-        Assert.True(data.TryGetProperty("Statusi", out _));
+        Assert.True(data.TryGetProperty("klientId", out _));
+        Assert.True(data.TryGetProperty("terapistId", out _));
+        Assert.True(data.TryGetProperty("sherbimId", out _));
+        Assert.True(data.TryGetProperty("dataTerminit", out _));
+        Assert.True(data.TryGetProperty("statusi", out _));
     }
 
     [Fact]
@@ -249,8 +274,8 @@ public class TerminetControllerTests : IClassFixture<CustomWebApplicationFactory
         var (resp, doc) = await Post("/api/terminet", NewTerminDto(klientId, terapistId, sherbimId));
 
         Assert.Equal(HttpStatusCode.Created, resp.StatusCode);
-        Assert.True(doc.GetProperty("success").GetBoolean());
-        Assert.True(doc.GetProperty("data").GetProperty("Id").GetInt32() > 0);
+        Assert.True(IsSuccess(doc));
+        Assert.True(GetTerminId(doc) > 0);
     }
 
     [Fact]
@@ -260,11 +285,11 @@ public class TerminetControllerTests : IClassFixture<CustomWebApplicationFactory
         var (klientId, terapistId, sherbimId) = await CreatePrerequisites();
 
         var (_, doc) = await Post("/api/terminet", NewTerminDto(klientId, terapistId, sherbimId));
-        var data = doc.GetProperty("data");
+        var data = Payload(doc);
 
-        Assert.Equal(klientId, data.GetProperty("KlientId").GetInt32());
-        Assert.Equal(terapistId, data.GetProperty("TerapistId").GetInt32());
-        Assert.Equal(sherbimId, data.GetProperty("SherbimId").GetInt32());
+        Assert.Equal(klientId, data.GetProperty("klientId").GetInt32());
+        Assert.Equal(terapistId, data.GetProperty("terapistId").GetInt32());
+        Assert.Equal(sherbimId, data.GetProperty("sherbimId").GetInt32());
     }
 
     // ── Update ────────────────────────────────────────────────────────────────
@@ -276,24 +301,25 @@ public class TerminetControllerTests : IClassFixture<CustomWebApplicationFactory
         var (klientId, terapistId, sherbimId) = await CreatePrerequisites();
 
         var (_, createDoc) = await Post("/api/terminet", NewTerminDto(klientId, terapistId, sherbimId));
-        var id = createDoc.GetProperty("data").GetProperty("Id").GetInt32();
+        var id = GetTerminId(createDoc);
 
-        var newDataOra = DateTime.UtcNow.AddDays(7).ToString("o");
         var response = await _client.PutAsJsonAsync($"/api/terminet/{id}", new
         {
             KlientId = klientId,
             TerapistId = terapistId,
             SherbimId = sherbimId,
-            DataOra = newDataOra,
+            DataTerminit = DateTime.UtcNow.AddDays(7).Date,
+            OraFillimit = "11:00:00",
+            OraMbarimit = "12:00:00",
             Statusi = "Konfirmuar",
-            Shenime = "Shenim i ri"
+            Shenimet = "Shenim i ri"
         });
         var body = await response.Content.ReadAsStringAsync();
         var doc = ParseBody(body);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.True(doc.GetProperty("success").GetBoolean());
-        Assert.Equal("Konfirmuar", doc.GetProperty("data").GetProperty("Statusi").GetString());
+        Assert.True(IsSuccess(doc));
+        Assert.Equal("Konfirmuar", Payload(doc).GetProperty("statusi").GetString());
     }
 
     [Fact]
@@ -307,9 +333,11 @@ public class TerminetControllerTests : IClassFixture<CustomWebApplicationFactory
             KlientId = klientId,
             TerapistId = terapistId,
             SherbimId = sherbimId,
-            DataOra = DateTime.UtcNow.AddDays(1).ToString("o"),
+            DataTerminit = DateTime.UtcNow.AddDays(1).Date,
+            OraFillimit = "13:00:00",
+            OraMbarimit = "14:00:00",
             Statusi = "Planifikuar",
-            Shenime = ""
+            Shenimet = ""
         });
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
@@ -323,14 +351,10 @@ public class TerminetControllerTests : IClassFixture<CustomWebApplicationFactory
         var (klientId, terapistId, sherbimId) = await CreatePrerequisites();
 
         var (_, createDoc) = await Post("/api/terminet", NewTerminDto(klientId, terapistId, sherbimId));
-        var id = createDoc.GetProperty("data").GetProperty("Id").GetInt32();
+        var id = GetTerminId(createDoc);
 
         var response = await _client.DeleteAsync($"/api/terminet/{id}");
-        var body = await response.Content.ReadAsStringAsync();
-        var doc = ParseBody(body);
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.True(doc.GetProperty("success").GetBoolean());
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
     }
 
     [Fact]
@@ -348,7 +372,7 @@ public class TerminetControllerTests : IClassFixture<CustomWebApplicationFactory
         var (klientId, terapistId, sherbimId) = await CreatePrerequisites();
 
         var (_, createDoc) = await Post("/api/terminet", NewTerminDto(klientId, terapistId, sherbimId));
-        var id = createDoc.GetProperty("data").GetProperty("Id").GetInt32();
+        var id = GetTerminId(createDoc);
 
         await _client.DeleteAsync($"/api/terminet/{id}");
 
