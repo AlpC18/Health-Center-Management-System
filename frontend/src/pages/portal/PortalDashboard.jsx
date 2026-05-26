@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { createElement, useEffect, useState } from 'react'
 import { Calendar, CreditCard, TrendingUp, Clock, Package } from 'lucide-react'
 import { portalApi } from '../../api/portalApi'
 import { PageLoader, StatusBadge } from '../../components/ui'
@@ -37,7 +37,7 @@ export default function PortalDashboard() {
         ].map(({ icon: Icon, label, value, color }) => (
           <div key={label} className="card p-4 flex items-start gap-3">
             <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${color}`}>
-              <Icon className="w-5 h-5 text-white" />
+              {createElement(Icon, { className: 'w-5 h-5 text-white' })}
             </div>
             <div>
               <p className="text-xl font-bold text-gray-900">{value}</p>

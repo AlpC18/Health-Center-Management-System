@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Calendar, X } from 'lucide-react'
 import { portalApi } from '../../api/portalApi'
 import { PageLoader, StatusBadge, ConfirmDialog } from '../../components/ui'
@@ -11,17 +11,22 @@ export default function PortalTerminet() {
   const [cancelling, setCancelling] = useState(null)
   const [cancelLoading, setCancelLoading] = useState(false)
 
-  const fetchTerminet = () => {
+  const fetchTerminet = useCallback(async () => {
+    await Promise.resolve()
     setLoading(true)
-    portalApi.getTerminet(filter)
-      .then((r) => setTerminet(r.data?.data || r.data || []))
-      .catch(() => toast.error('Terminet nuk mund të ngarkohen.'))
-      .finally(() => setLoading(false))
-  }
+    try {
+      const r = await portalApi.getTerminet(filter)
+      setTerminet(r.data?.data || r.data || [])
+    } catch {
+      toast.error('Terminet nuk mund të ngarkohen.')
+    } finally {
+      setLoading(false)
+    }
+  }, [filter])
 
   useEffect(() => {
-    fetchTerminet()
-  }, [filter])
+    void fetchTerminet()
+  }, [fetchTerminet])
 
   const handleCancel = async () => {
     setCancelLoading(true)

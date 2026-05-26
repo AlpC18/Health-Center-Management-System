@@ -7,6 +7,7 @@ export default function PortalAnetaresimi() {
   const [anetaresimet, setAnetaresimet] = useState([])
   const [paketat, setPaketat] = useState([])
   const [loading, setLoading] = useState(true)
+  const [now] = useState(() => Date.now())
 
   useEffect(() => {
     Promise.all([portalApi.getAnetaresimi(), portalApi.getPaketat()])
@@ -40,9 +41,9 @@ export default function PortalAnetaresimi() {
           </div>
           {(() => {
             const total = new Date(aktiv.dataMbarimit) - new Date(aktiv.dataFillimit)
-            const passed = Date.now() - new Date(aktiv.dataFillimit)
+            const passed = now - new Date(aktiv.dataFillimit)
             const pct = Math.min(100, Math.max(0, (passed / total) * 100))
-            const remaining = Math.max(0, Math.ceil((new Date(aktiv.dataMbarimit) - Date.now()) / (1000 * 60 * 60 * 24)))
+            const remaining = Math.max(0, Math.ceil((new Date(aktiv.dataMbarimit) - now) / (1000 * 60 * 60 * 24)))
             return (
               <div>
                 <div className="flex justify-between text-xs text-gray-500 mb-1">
