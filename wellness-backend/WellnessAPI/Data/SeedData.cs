@@ -24,10 +24,20 @@ public static class SeedData
 
         // 2. SYSTEM USERS (always ensure test logins exist)
         await EnsureUserWithRoleAsync(userManager, "admin@wellness.com", "Admin123!", "Admin", "Wellness", "Admin");
-        await EnsureUserWithRoleAsync(userManager, "therapist@wellness.com", "Therapist123!", "Arta", "Krasniqi", "Therapist");
 
         if (db.Klientet.Any())
         {
+            // Link therapist user to its Terapist row (if not already linked)
+            var ter = await db.Terapistet.AsNoTracking().OrderBy(t => t.TerapistId).FirstOrDefaultAsync();
+            await EnsureUserWithRoleAsync(
+                userManager,
+                "therapist@wellness.com",
+                "Therapist123!",
+                ter?.Emri ?? "Arta",
+                ter?.Mbiemri ?? "Krasniqi",
+                "Therapist",
+                terapistId: ter?.TerapistId.ToString());
+
             var klient = await db.Klientet.AsNoTracking().OrderBy(k => k.KlientId).FirstOrDefaultAsync();
             await EnsureUserWithRoleAsync(
                 userManager,
@@ -181,7 +191,79 @@ public static class SeedData
             defaultKlient?.Emri ?? "Client",
             defaultKlient?.Mbiemri ?? "Wellness",
             "Klient",
-            defaultKlient?.KlientId.ToString());
+            klientId: defaultKlient?.KlientId.ToString());
+
+        // Therapist user → linked to first terapist row
+        var defaultTerapist = terapistet.FirstOrDefault();
+        await EnsureUserWithRoleAsync(
+            userManager,
+            "therapist@wellness.com",
+            "Therapist123!",
+            defaultTerapist?.Emri ?? "Arta",
+            defaultTerapist?.Mbiemri ?? "Krasniqi",
+            "Therapist",
+            terapistId: defaultTerapist?.TerapistId.ToString());
+
+        // 10. SAMPLE CLINICAL NOTES (one per finished termin's first-3)
+        var finishedTerminet = terminet.Where(t => t.Statusi == "Perfunduar").Take(6).ToList();
+        var noteSamples = new[] {
+            ("Anamnese", "Klienti ankohet për dhimbje në shpinë; histori tre javë."),
+            ("Trajtim", "Aplikuar masazh terapeutik 60 min, fokus në muskulin trapez."),
+            ("Vezhgim", "Lëvizshmëria u përmirësua, dhimbja zbriti nga 7/10 në 4/10."),
+            ("Plan", "Vazhdoj 2 seanca në javë për tre javë; ushtrime shtëpie."),
+        };
+        foreach (var t in finishedTerminet)
+        {
+            for (int n = 0; n < 2; n++)
+            {
+                var (tipi, perm) = noteSamples[rnd.Next(noteSamples.Length)];
+                db.KlientShenime.Add(new KlientShenim
+                {
+                    KlientId = t.KlientId,
+                    TerminId = t.TerminId,
+                    TerapistId = t.TerapistId,
+                    Tipi = tipi,
+                    Permbajtja = perm,
+                    Privat = false,
+                    DataKrijimit = t.DataTerminit.AddHours(1)
+                });
+            }
+        }
+
+        // 11. SAMPLE MEASUREMENTS (3 readings spread over 90 days for first 6 clients)
+        for (int i = 0; i < 6 && i < klientet.Count; i++)
+        {
+            var k = klientet[i];
+            var baseWeight = 60 + rnd.Next(0, 30);
+            for (int j = 0; j < 3; j++)
+            {
+                db.KlientMatjet.Add(new KlientMatje
+                {
+                    KlientId = k.KlientId,
+                    DataMatjes = DateTime.UtcNow.AddDays(-90 + j * 30),
+                    PeshaKg = baseWeight - j * 1.5m,
+                    GjatesiaCm = 165 + rnd.Next(0, 30),
+                    YndyraTrupore = 25 - j * 1.0m,
+                    BeliCm = 80 - j * 1.2m,
+                    KofshaCm = 95 - j * 0.5m,
+                });
+            }
+        }
+
+        // 12. SAMPLE LOYALTY POINTS — 50 welcome pts each client
+        foreach (var k in klientet)
+        {
+            db.KlientPikat.Add(new KlientPika
+            {
+                KlientId = k.KlientId,
+                Pike = 50,
+                Tipi = "Shperblim",
+                Shenim = "Bonus mirëseardhjeje",
+                DataKrijimit = k.DataRegjistrimit,
+            });
+        }
+
+        await db.SaveChangesAsync();
     }
 
     private static async Task EnsureUserWithRoleAsync(
@@ -191,7 +273,8 @@ public static class SeedData
         string firstName,
         string lastName,
         string role,
-        string? klientId = null)
+        string? klientId = null,
+        string? terapistId = null)
     {
         var user = await userManager.FindByEmailAsync(email);
         if (user is null)
@@ -204,16 +287,21 @@ public static class SeedData
                 LastName = lastName,
                 IsActive = true,
                 EmailConfirmed = true,
-                KlientId = klientId
+                KlientId = klientId,
+                TerapistId = terapistId,
             };
 
             var create = await userManager.CreateAsync(user, password);
             if (!create.Succeeded) return;
         }
-        else if (role == "Klient" && string.IsNullOrWhiteSpace(user.KlientId) && !string.IsNullOrWhiteSpace(klientId))
+        else
         {
-            user.KlientId = klientId;
-            await userManager.UpdateAsync(user);
+            var changed = false;
+            if (role == "Klient" && string.IsNullOrWhiteSpace(user.KlientId) && !string.IsNullOrWhiteSpace(klientId))
+            { user.KlientId = klientId; changed = true; }
+            if (role == "Therapist" && string.IsNullOrWhiteSpace(user.TerapistId) && !string.IsNullOrWhiteSpace(terapistId))
+            { user.TerapistId = terapistId; changed = true; }
+            if (changed) await userManager.UpdateAsync(user);
         }
 
         if (!await userManager.IsInRoleAsync(user, role))
