@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useCallback, useState, useEffect } from 'react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts'
 import { TrendingUp, ShoppingBag, Calendar, Star, Download, RefreshCw } from 'lucide-react'
 import { reportsApi } from '../api/api'
@@ -11,16 +11,21 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
-  const fetchData = () => {
+  const fetchData = useCallback(async () => {
+    await Promise.resolve()
     setLoading(true)
     setError(null)
-    reportsApi.getAnalytics()
-      .then((r) => setData(r.data))
-      .catch(() => setError('Nuk mund të ngarkohen raportet.'))
-      .finally(() => setLoading(false))
-  }
+    try {
+      const r = await reportsApi.getAnalytics()
+      setData(r.data)
+    } catch {
+      setError('Nuk mund të ngarkohen raportet.')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
 
-  useEffect(() => { fetchData() }, [])
+  useEffect(() => { void fetchData() }, [fetchData])
 
   const handleDownloadPdf = () => {
     reportsApi.getKlientetPdf().then((r) => {
@@ -30,7 +35,9 @@ export default function ReportsPage() {
       a.download = `Raporti_Klienteve_${new Date().toISOString().slice(0, 10)}.pdf`
       a.click()
       URL.revokeObjectURL(url)
-    }).catch(() => {})
+    }).catch(() => {
+      // Export failures are non-blocking for the reports page.
+    })
   }
 
   return (

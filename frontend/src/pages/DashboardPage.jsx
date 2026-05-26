@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { createElement, useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Users,
@@ -17,6 +17,8 @@ import {
   Phone,
   Settings,
   AlertTriangle,
+  Filter,
+  X,
 } from 'lucide-react'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -116,37 +118,59 @@ export default function DashboardPage() {
   const [terminet, setTerminet] = useState([])
   const [klientet, setKlientet] = useState([])
   const [lowStock, setLowStock] = useState([])
+  // Date-range filter — empty strings mean "use server defaults"
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+  // Applied values drive the actual fetch; pending values are what's in the inputs
+  const [applied, setApplied] = useState({ from: '', to: '' })
   const { lang } = useLangStore()
 
-  const fetchAll = useCallback(() => {
+  const fetchAll = useCallback(async () => {
+    await Promise.resolve()
     setLoading(true)
-    Promise.allSettled([
-      dashboardApi.getStats(),
-      dashboardApi.getAnalytics(),
+    const range = { from: applied.from || undefined, to: applied.to || undefined }
+    const [statsRes, analyticsRes, terminetRes, klientetRes, lowStockRes] = await Promise.allSettled([
+      dashboardApi.getStats(range),
+      dashboardApi.getAnalytics(range),
       terminetApi.getAll(),
       klientetApi.getAll(),
       dashboardApi.getLowStock(),
-    ]).then(([statsRes, analyticsRes, terminetRes, klientetRes, lowStockRes]) => {
-      if (statsRes.status === 'fulfilled') setStats(statsRes.value.data)
-      if (analyticsRes.status === 'fulfilled') setAnalytics(analyticsRes.value.data)
+    ])
+    if (statsRes.status === 'fulfilled') setStats(statsRes.value.data)
+    if (analyticsRes.status === 'fulfilled') setAnalytics(analyticsRes.value.data)
 
-      if (terminetRes.status === 'fulfilled') {
-        const items = terminetRes.value.data?.data ?? terminetRes.value.data ?? []
-        setTerminet(items.slice(-5).reverse())
-      }
+    if (terminetRes.status === 'fulfilled') {
+      const items = terminetRes.value.data?.data ?? terminetRes.value.data ?? []
+      setTerminet(items.slice(-5).reverse())
+    }
 
-      if (klientetRes.status === 'fulfilled') {
-        const items = klientetRes.value.data?.data ?? klientetRes.value.data ?? []
-        setKlientet(items.slice(-5).reverse())
-      }
+    if (klientetRes.status === 'fulfilled') {
+      const items = klientetRes.value.data?.data ?? klientetRes.value.data ?? []
+      setKlientet(items.slice(-5).reverse())
+    }
 
-      if (lowStockRes.status === 'fulfilled') {
-        setLowStock(lowStockRes.value.data?.data ?? [])
-      }
-    }).finally(() => setLoading(false))
-  }, [])
+    if (lowStockRes.status === 'fulfilled') {
+      setLowStock(lowStockRes.value.data?.data ?? [])
+    }
+    setLoading(false)
+  }, [applied])
 
-  useEffect(() => { fetchAll() }, [fetchAll])
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void fetchAll()
+    }, 0)
+    return () => window.clearTimeout(timer)
+  }, [fetchAll])
+
+  const applyRange = () => {
+    setApplied({ from: dateFrom, to: dateTo })
+  }
+  const resetRange = () => {
+    setDateFrom('')
+    setDateTo('')
+    setApplied({ from: '', to: '' })
+  }
+  const rangeActive = Boolean(applied.from || applied.to)
 
   return (
     <div className="space-y-8">
@@ -160,6 +184,50 @@ export default function DashboardPage() {
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           Rifresko Dashboard
         </button>
+      </div>
+
+      {/* Date Range Filter */}
+      <div className="card p-4 flex flex-wrap items-center gap-3">
+        <Filter className="w-4 h-4 text-health-secondary" />
+        <label className="flex items-center gap-2 text-xs font-bold text-health-secondary uppercase tracking-wider">
+          {t(lang, 'dateFrom')}
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            className="bg-health-surface border border-health-border rounded-lg px-3 py-2 text-sm font-semibold text-health-primary focus:outline-none focus:ring-2 focus:ring-health-brand/30"
+          />
+        </label>
+        <label className="flex items-center gap-2 text-xs font-bold text-health-secondary uppercase tracking-wider">
+          {t(lang, 'dateTo')}
+          <input
+            type="date"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+            className="bg-health-surface border border-health-border rounded-lg px-3 py-2 text-sm font-semibold text-health-primary focus:outline-none focus:ring-2 focus:ring-health-brand/30"
+          />
+        </label>
+        <button
+          onClick={applyRange}
+          disabled={!dateFrom && !dateTo}
+          className="btn-primary px-4 py-2 text-xs font-bold disabled:opacity-30 disabled:cursor-not-allowed"
+        >
+          {t(lang, 'apply')}
+        </button>
+        {rangeActive && (
+          <button
+            onClick={resetRange}
+            className="btn-secondary flex items-center gap-1.5 px-3 py-2 text-xs font-bold bg-health-surface border border-health-border rounded-lg hover:bg-health-hover transition-colors"
+          >
+            <X className="w-3 h-3" />
+            {t(lang, 'reset')}
+          </button>
+        )}
+        {rangeActive && (
+          <span className="ml-auto text-xs font-bold text-health-accent bg-health-accent/10 border border-health-accent/30 rounded-lg px-3 py-1.5">
+            {applied.from || '…'} → {applied.to || '…'}
+          </span>
+        )}
       </div>
 
       {/* NEW: Organ Donation & Appointment Sections */}
@@ -298,7 +366,7 @@ export default function DashboardPage() {
               <div key={key} className="card p-6 flex flex-col justify-between min-h-[140px] hover:border-health-accent/30 transition-all">
                 <div className="flex items-center justify-between">
                   <div className={`p-2.5 rounded-xl ${bg}`}>
-                    <Icon className={`h-5 w-5 ${color}`} />
+                    {createElement(Icon, { className: `h-5 w-5 ${color}` })}
                   </div>
                   {stats?.[sub] != null && (
                     <span className="text-[10px] font-bold text-health-secondary uppercase tracking-wider bg-health-bg px-2 py-1 rounded-lg border border-health-border">
@@ -406,7 +474,7 @@ export default function DashboardPage() {
               className="card p-4 flex items-center gap-4 hover:bg-health-hover transition-all group"
             >
               <div className={`p-3 rounded-xl ${bg} group-hover:scale-110 transition-transform`}>
-                <Icon className={`h-5 w-5 ${color}`} />
+                {createElement(Icon, { className: `h-5 w-5 ${color}` })}
               </div>
               <div className="min-w-0">
                 <p className="text-sm font-bold text-health-primary truncate">{t(lang, labelKey)}</p>

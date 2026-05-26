@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { createElement, useCallback, useEffect, useState } from 'react'
 import {
   AlertTriangle,
   BarChart3,
@@ -92,7 +92,7 @@ function MetricCard({ icon: Icon, label, value }) {
     <div className="card p-5">
       <div className="flex items-center gap-3">
         <div className="h-10 w-10 rounded-xl bg-health-brand/10 text-health-brand flex items-center justify-center">
-          <Icon className="h-5 w-5" />
+          {createElement(Icon, { className: 'h-5 w-5' })}
         </div>
         <div>
           <p className="text-xs uppercase tracking-widest text-health-secondary font-bold">{label}</p>
@@ -111,7 +111,8 @@ export default function AdvancedFeaturesPage() {
   const [lowStock, setLowStock] = useState([])
   const [notifications, setNotifications] = useState([])
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
+    await Promise.resolve()
     setLoading(true)
     const [reportsRes, retentionRes, therapistRes, stockRes, notificationsRes] = await Promise.allSettled([
       advancedApi.getReports(),
@@ -127,11 +128,14 @@ export default function AdvancedFeaturesPage() {
     if (stockRes.status === 'fulfilled') setLowStock(stockRes.value.data ?? [])
     if (notificationsRes.status === 'fulfilled') setNotifications(notificationsRes.value.data ?? [])
     setLoading(false)
-  }
+  }, [])
 
   useEffect(() => {
-    fetchData()
-  }, [])
+    const timer = window.setTimeout(() => {
+      void fetchData()
+    }, 0)
+    return () => window.clearTimeout(timer)
+  }, [fetchData])
 
   if (loading) {
     return (
@@ -171,7 +175,7 @@ export default function AdvancedFeaturesPage() {
             {featureGroups.map(({ title, icon: Icon, items }) => (
               <div key={title} className="rounded-xl border border-health-border bg-health-surface/60 p-5">
                 <div className="flex items-center gap-3 mb-4">
-                  <Icon className="h-5 w-5 text-health-brand" />
+                  {createElement(Icon, { className: 'h-5 w-5 text-health-brand' })}
                   <h3 className="font-bold text-health-primary">{title}</h3>
                 </div>
                 <div className="space-y-2">
