@@ -31,6 +31,9 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<Lajmerimi> Lajmerimet => Set<Lajmerimi>();
     public DbSet<Zbritja> Zbritjet => Set<Zbritja>();
     public DbSet<Pushimi> Pushimet => Set<Pushimi>();
+    public DbSet<KlientShenim> KlientShenime => Set<KlientShenim>();
+    public DbSet<KlientMatje> KlientMatjet => Set<KlientMatje>();
+    public DbSet<KlientPika> KlientPikat => Set<KlientPika>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -176,6 +179,32 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             e.HasKey(p => p.PushimId);
             e.HasIndex(p => p.TerapistId);
             e.HasIndex(p => p.Statusi);
+        });
+
+        builder.Entity<KlientShenim>(e => {
+            e.HasKey(s => s.ShenimId);
+            e.Property(s => s.Tipi).IsRequired().HasMaxLength(20);
+            e.Property(s => s.Permbajtja).IsRequired();
+            e.HasIndex(s => s.KlientId);
+            e.HasIndex(s => s.TerminId);
+            e.HasIndex(s => s.DataKrijimit);
+        });
+
+        builder.Entity<KlientMatje>(e => {
+            e.HasKey(m => m.MatjeId);
+            e.Property(m => m.PeshaKg).HasColumnType("decimal(6,2)");
+            e.Property(m => m.GjatesiaCm).HasColumnType("decimal(6,2)");
+            e.Property(m => m.YndyraTrupore).HasColumnType("decimal(5,2)");
+            e.Property(m => m.BeliCm).HasColumnType("decimal(6,2)");
+            e.Property(m => m.KofshaCm).HasColumnType("decimal(6,2)");
+            e.HasIndex(m => new { m.KlientId, m.DataMatjes });
+        });
+
+        builder.Entity<KlientPika>(e => {
+            e.HasKey(p => p.PikaId);
+            e.Property(p => p.Tipi).IsRequired().HasMaxLength(20);
+            e.HasIndex(p => p.KlientId);
+            e.HasIndex(p => p.DataKrijimit);
         });
     }
 }
