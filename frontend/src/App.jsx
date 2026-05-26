@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import useAuthStore from './store/authStore'
@@ -30,6 +30,8 @@ const ZbritjetPage = lazy(() => import('./pages/entities').then((m) => ({ defaul
 const PushimetPage = lazy(() => import('./pages/entities').then((m) => ({ default: m.PushimetPage })))
 const AdvancedFeaturesPage = lazy(() => import('./pages/AdvancedFeaturesPage'))
 const ReportsPage = lazy(() => import('./pages/ReportsPage'))
+const TherapistPortalPage = lazy(() => import('./pages/TherapistPortalPage'))
+const KlientProfilePage = lazy(() => import('./pages/KlientProfilePage'))
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'))
 const PortalDashboard = lazy(() => import('./pages/portal/PortalDashboard'))
 const PortalTerminet = lazy(() => import('./pages/portal/PortalTerminet'))
@@ -76,17 +78,24 @@ function AdminRoute() {
 function GuestRoute() {
   const { accessToken, user } = useAuthStore()
   const roles = Array.isArray(user?.roles) ? user.roles : []
-  const isAdmin =
-    user?.role === 'Admin' ||
-    user?.role === 'Therapist' ||
-    roles.includes('Admin') ||
-    roles.includes('Staff') ||
-    roles.includes('Therapist')
-  const defaultPath = isAdmin ? '/dashboard' : '/portal/dashboard'
+  const isAdmin = user?.role === 'Admin' || roles.includes('Admin') || roles.includes('Staff')
+  const isTherapist = user?.role === 'Therapist' || roles.includes('Therapist')
+  const defaultPath = isAdmin ? '/dashboard' : isTherapist ? '/terapist-portal' : '/portal/dashboard'
   return accessToken ? <Navigate to={defaultPath} replace /> : <Outlet />
 }
 
 export default function App() {
+  const hydrated = useAuthStore((s) => s.hydrated)
+  const hydrate = useAuthStore((s) => s.hydrate)
+
+  useEffect(() => {
+    hydrate()
+  }, [hydrate])
+
+  // Wait for the boot-time session restore before routing so a page
+  // refresh doesn't flash the login screen for an authenticated user.
+  if (!hydrated) return <PageFallback />
+
   return (
     <BrowserRouter>
       <SignalRListener />
@@ -117,7 +126,9 @@ export default function App() {
         <Route element={<ProtectedRoute />}>
           <Route element={<Layout />}>
             <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/terapist-portal" element={<TherapistPortalPage />} />
             <Route path="/klientet" element={<KlientetPage />} />
+            <Route path="/klientet/:id" element={<KlientProfilePage />} />
             <Route path="/sherbimet" element={<SherbiimetPage />} />
             <Route path="/terapistet" element={<TerapistetPage />} />
             <Route path="/terminet" element={<TerminetPage />} />
