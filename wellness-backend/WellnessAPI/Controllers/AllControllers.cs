@@ -27,6 +27,7 @@ public class SherbimetController : ControllerBase
     /// Merr listën e të gjitha shërbimeve me mundësi kërkimi dhe paginimi.
     /// </summary>
     /// <param name="search">Teksti për kërkim (emri i shërbimit ose kategoria).</param>
+    /// <param name="aktiv">Filtron shërbimet sipas statusit aktiv.</param>
     /// <param name="page">Numri i faqes.</param>
     /// <param name="limit">Numri i elementeve për faqe.</param>
     /// <returns>Një listë shërbimesh dhe informacione për paginim.</returns>
@@ -122,6 +123,9 @@ public class TerapistetController : ControllerBase
     [HttpPost]
     public async Task<ActionResult> Create(TerapistCreateDto dto)
     {
+        if (await _db.Terapistet.AnyAsync(t => t.Email == dto.Email))
+            return BadRequest(new { success = false, message = "Email tashmë ekziston." });
+
         var t = new Terapist { Emri = dto.Emri, Mbiemri = dto.Mbiemri, Specializimi = dto.Specializimi, Licenca = dto.Licenca, Email = dto.Email, Telefoni = dto.Telefoni, Aktiv = dto.Aktiv };
         _db.Terapistet.Add(t);
         await _db.SaveChangesAsync();
@@ -134,6 +138,9 @@ public class TerapistetController : ControllerBase
     {
         var t = await _db.Terapistet.FindAsync(id);
         if (t == null) return NotFound();
+        if (await _db.Terapistet.AnyAsync(x => x.Email == dto.Email && x.TerapistId != id))
+            return BadRequest(new { success = false, message = "Email tashmë përdoret." });
+
         var old = t;
         t.Emri = dto.Emri; t.Mbiemri = dto.Mbiemri; t.Specializimi = dto.Specializimi; t.Licenca = dto.Licenca; t.Email = dto.Email; t.Telefoni = dto.Telefoni; t.Aktiv = dto.Aktiv;
         await _db.SaveChangesAsync();
@@ -162,13 +169,57 @@ public class TerminetController : ControllerBase
     private readonly ApplicationDbContext _db;
     private readonly AuditService _audit;
     private readonly IHubContext<NotificationHub> _hub;
-    public TerminetController(ApplicationDbContext db, AuditService audit, IHubContext<NotificationHub> hub) { _db = db; _audit = audit; _hub = hub; }
+    private readonly EmailService _email;
+    private readonly ILogger<TerminetController> _logger;
+    public TerminetController(ApplicationDbContext db, AuditService audit, IHubContext<NotificationHub> hub, EmailService email, ILogger<TerminetController> logger) { _db = db; _audit = audit; _hub = hub; _email = email; _logger = logger; }
+
+    // Allowed appointment status transitions (state machine). Unknown current
+    // statuses are permissive so legacy data is never blocked.
+    private static readonly Dictionary<string, string[]> AllowedStatusTransitions = new()
+    {
+        ["Planifikuar"] = new[] { "Planifikuar", "Konfirmuar", "Anuluar" },
+        ["Konfirmuar"]  = new[] { "Konfirmuar", "Perfunduar", "Anuluar" },
+        ["Perfunduar"]  = new[] { "Perfunduar" },
+        ["Anuluar"]     = new[] { "Anuluar" },
+    };
+
+    private async Task SendBookingEmailAsync(Termin t)
+    {
+        try
+        {
+            // Project just the scalars we need with AsNoTracking, so EF's change tracker
+            // never attaches the Klient entity (which would fix up nav properties and
+            // create a JSON cycle when the controller returns the new Termin).
+            var k = await _db.Klientet.AsNoTracking()
+                .Where(x => x.KlientId == t.KlientId)
+                .Select(x => new { x.Email, x.Emri })
+                .FirstOrDefaultAsync();
+            if (k is not null && !string.IsNullOrWhiteSpace(k.Email))
+                await _email.SendEmailAsync(k.Email,
+                    "Konfirmim i terminit - Wellness House",
+                    $"Pershendetje {k.Emri},\n\nTermini juaj u rezervua me sukses per {t.DataTerminit:dd/MM/yyyy} ne oren {t.OraFillimit:hh\\:mm}.\n\nWellness House");
+        }
+        catch (Exception ex)
+        {
+            // Email is best-effort: a mail failure must never fail the booking.
+            _logger.LogWarning(ex, "Email i konfirmimit deshtoi per terminin {TerminId}", t.TerminId);
+        }
+    }
 
     [HttpGet]
-    public async Task<ActionResult> GetAll([FromQuery] string? status, [FromQuery] int page = 1, [FromQuery] int limit = 10)
+    public async Task<ActionResult> GetAll(
+        [FromQuery] string? status,
+        [FromQuery] string? statusi,
+        [FromQuery] int? klientId,
+        [FromQuery] int? terapistId,
+        [FromQuery] int page = 1,
+        [FromQuery] int limit = 10)
     {
         var q = _db.Terminet.Include(t => t.Klienti).Include(t => t.Sherbimi).Include(t => t.Terapisti).AsNoTracking().AsQueryable();
-        if (!string.IsNullOrEmpty(status)) q = q.Where(t => t.Statusi == status);
+        var statusFilter = status ?? statusi;
+        if (!string.IsNullOrEmpty(statusFilter)) q = q.Where(t => t.Statusi == statusFilter);
+        if (klientId.HasValue) q = q.Where(t => t.KlientId == klientId.Value);
+        if (terapistId.HasValue) q = q.Where(t => t.TerapistId == terapistId.Value);
         var total = await q.CountAsync();
         var data = await q.OrderByDescending(t => t.DataTerminit).Skip((page - 1) * limit).Take(limit)
             .Select(t => new TerminResponseDto(t.TerminId, t.KlientId, t.Klienti.Emri + " " + t.Klienti.Mbiemri, t.SherbimId, t.Sherbimi.EmriSherbimit, t.TerapistId, t.Terapisti.Emri + " " + t.Terapisti.Mbiemri, t.DataTerminit, t.OraFillimit, t.OraMbarimit, t.Statusi, t.Shenimet)).ToListAsync();
@@ -186,8 +237,8 @@ public class TerminetController : ControllerBase
     [HttpPost]
     public async Task<ActionResult> Create(TerminCreateDto dto)
     {
-        // SQLite cannot translate DateTime.Date or TimeSpan overlap math, so we
-        // narrow down server-side and evaluate the overlap rule in memory.
+        // The day-range filter runs server-side; the small per-therapist/day result is
+        // checked for time-overlap in memory (correct + portable across MySQL/MariaDB).
         var dayStart = dto.DataTerminit.Date;
         var dayEnd = dayStart.AddDays(1);
         var sameDay = await _db.Terminet
@@ -204,6 +255,11 @@ public class TerminetController : ControllerBase
         if (conflict)
             return Conflict(new { message = "Terapisti është i zënë në këtë orar." });
 
+        // Block booking when the therapist has APPROVED leave covering that day.
+        if (await _db.Pushimet.AnyAsync(p => p.TerapistId == dto.TerapistId
+                && p.Statusi == "Aprovuar" && p.DataFillimit < dayEnd && p.DataMbarimit >= dayStart))
+            return Conflict(new { message = "Terapisti është në pushim në këtë datë." });
+
         var t = new Termin { KlientId = dto.KlientId, SherbimId = dto.SherbimId, TerapistId = dto.TerapistId, DataTerminit = dto.DataTerminit, OraFillimit = dto.OraFillimit, OraMbarimit = dto.OraMbarimit, Statusi = dto.Statusi ?? "Planifikuar", Shenimet = dto.Shenimet };
         _db.Terminet.Add(t);
         await _db.SaveChangesAsync();
@@ -215,7 +271,93 @@ public class TerminetController : ControllerBase
             statusi = t.Statusi,
             message = "Termin i ri u shtua."
         });
+        await SendBookingEmailAsync(t);
         return CreatedAtAction(nameof(GetById), new { id = t.TerminId }, t);
+    }
+
+    /// <summary>
+    /// Bulk-create recurring appointments. Each candidate slot is independently checked
+    /// for therapist conflicts and approved leave. Skipped slots are reported back with
+    /// reasons so the UI can show what happened.
+    /// </summary>
+    [HttpPost("recurring")]
+    public async Task<ActionResult> CreateRecurring(RecurringTerminCreateDto dto)
+    {
+        if (dto.HereNumri < 1 || dto.HereNumri > 52)
+            return BadRequest(new { message = "HereNumri duhet të jetë midis 1 dhe 52." });
+        if (dto.IntervaliJave < 1 || dto.IntervaliJave > 8)
+            return BadRequest(new { message = "IntervaliJave duhet të jetë midis 1 dhe 8." });
+
+        var createdIds = new List<int>();
+        var messages = new List<string>();
+        int created = 0, skipped = 0;
+
+        // Pre-fetch the therapist's leaves once for efficiency
+        var leaves = await _db.Pushimet.AsNoTracking()
+            .Where(p => p.TerapistId == dto.TerapistId && p.Statusi == "Aprovuar")
+            .Select(p => new { p.DataFillimit, p.DataMbarimit })
+            .ToListAsync();
+
+        for (int i = 0; i < dto.HereNumri; i++)
+        {
+            var date = dto.DataFillimit.Date.AddDays(7 * dto.IntervaliJave * i);
+            var dayStart = date;
+            var dayEnd = dayStart.AddDays(1);
+
+            // Leave check
+            if (leaves.Any(l => l.DataFillimit < dayEnd && l.DataMbarimit >= dayStart))
+            {
+                skipped++;
+                messages.Add($"{date:dd/MM/yyyy}: terapisti është në pushim.");
+                continue;
+            }
+
+            // Per-iteration conflict check (must re-read because we add as we go)
+            var sameDay = await _db.Terminet
+                .Where(x => x.TerapistId == dto.TerapistId && x.DataTerminit >= dayStart && x.DataTerminit < dayEnd)
+                .Select(x => new { x.OraFillimit, x.OraMbarimit })
+                .ToListAsync();
+            var conflict = sameDay.Any(x =>
+                (dto.OraFillimit >= x.OraFillimit && dto.OraFillimit < x.OraMbarimit) ||
+                (dto.OraMbarimit > x.OraFillimit && dto.OraMbarimit <= x.OraMbarimit) ||
+                (dto.OraFillimit <= x.OraFillimit && dto.OraMbarimit >= x.OraMbarimit));
+            if (conflict)
+            {
+                skipped++;
+                messages.Add($"{date:dd/MM/yyyy}: orari është i zënë.");
+                continue;
+            }
+
+            var t = new Termin
+            {
+                KlientId = dto.KlientId,
+                SherbimId = dto.SherbimId,
+                TerapistId = dto.TerapistId,
+                DataTerminit = date,
+                OraFillimit = dto.OraFillimit,
+                OraMbarimit = dto.OraMbarimit,
+                Statusi = dto.Statusi,
+                Shenimet = dto.Shenimet,
+            };
+            _db.Terminet.Add(t);
+            await _db.SaveChangesAsync();
+            createdIds.Add(t.TerminId);
+            created++;
+        }
+
+        await _audit.LogAsync("CREATE_RECURRING", "Termin", string.Join(",", createdIds), null,
+            new { dto.KlientId, dto.TerapistId, dto.SherbimId, krijuar = created, anashkaluar = skipped });
+
+        if (created > 0)
+        {
+            await _hub.Clients.All.SendAsync(NotificationEvents.NewAppointment, new {
+                count = created,
+                klientId = dto.KlientId,
+                message = $"U krijuan {created} termine të përsëritura."
+            });
+        }
+
+        return Ok(new RecurringTerminResultDto(created, skipped, createdIds, messages));
     }
 
     [HttpPut("{id}")]
@@ -224,8 +366,8 @@ public class TerminetController : ControllerBase
         var t = await _db.Terminet.FindAsync(id);
         if (t == null) return NotFound();
 
-        // SQLite cannot translate DateTime.Date or TimeSpan overlap math, so we
-        // narrow down server-side and evaluate the overlap rule in memory.
+        // The day-range filter runs server-side; the small per-therapist/day result is
+        // checked for time-overlap in memory (correct + portable across MySQL/MariaDB).
         var dayStart = dto.DataTerminit.Date;
         var dayEnd = dayStart.AddDays(1);
         var sameDay = await _db.Terminet
@@ -243,10 +385,40 @@ public class TerminetController : ControllerBase
         if (conflict)
             return Conflict(new { message = "Terapisti është i zënë në këtë orar." });
 
+        // Block reschedule onto a day the therapist is on approved leave.
+        if (await _db.Pushimet.AnyAsync(p => p.TerapistId == dto.TerapistId
+                && p.Statusi == "Aprovuar" && p.DataFillimit < dayEnd && p.DataMbarimit >= dayStart))
+            return Conflict(new { message = "Terapisti është në pushim në këtë datë." });
+
+        // Enforce the appointment status workflow.
+        if (AllowedStatusTransitions.TryGetValue(t.Statusi, out var allowedNext) && !allowedNext.Contains(dto.Statusi))
+            return BadRequest(new { message = $"Kalim i palejuar i statusit: {t.Statusi} -> {dto.Statusi}." });
+
         var old = t;
+        var wasPerfunduar = t.Statusi == "Perfunduar";
         t.KlientId = dto.KlientId; t.SherbimId = dto.SherbimId; t.TerapistId = dto.TerapistId; t.DataTerminit = dto.DataTerminit; t.OraFillimit = dto.OraFillimit; t.OraMbarimit = dto.OraMbarimit; t.Statusi = dto.Statusi; t.Shenimet = dto.Shenimet;
         await _db.SaveChangesAsync();
         await _audit.LogAsync("UPDATE", "Termin", id.ToString(), old, dto);
+
+        // Award loyalty points when a termin first transitions to "Perfunduar".
+        // Only awarded once per termin (no double-award if already Perfunduar).
+        if (!wasPerfunduar && dto.Statusi == "Perfunduar")
+        {
+            // Skip if a ledger entry for this termin already exists (defence in depth).
+            var alreadyAwarded = await _db.KlientPikat.AnyAsync(p => p.LidhjeId == id && p.Tipi == "Termin");
+            if (!alreadyAwarded)
+            {
+                _db.KlientPikat.Add(new KlientPika
+                {
+                    KlientId = t.KlientId,
+                    Pike = 10,
+                    Tipi = "Termin",
+                    LidhjeId = t.TerminId,
+                    Shenim = $"Termin i përfunduar #{t.TerminId}",
+                });
+                await _db.SaveChangesAsync();
+            }
+        }
         return Ok(t);
     }
 
@@ -551,12 +723,70 @@ public class ShitjetController : ControllerBase
         if (produkt.SasiaStok < dto.Sasia)
             return BadRequest(new { success = false, message = $"Stoku i pamjaftueshëm. Disponibël: {produkt.SasiaStok}" });
 
+        // Apply a discount code if provided: it must be active, within its date
+        // window, and under its usage limit. On success we apply the % and count the use.
+        var cmimiFinal = dto.CmimiTotal;
+        if (!string.IsNullOrWhiteSpace(dto.KodiZbritjes))
+        {
+            var now = DateTime.UtcNow;
+            var zbritje = await _db.Zbritjet.FirstOrDefaultAsync(z => z.Kodi == dto.KodiZbritjes);
+            if (zbritje is null || !zbritje.Aktive)
+                return BadRequest(new { success = false, message = "Kodi i zbritjes është i pavlefshëm." });
+            if (now < zbritje.DataFillimit || now > zbritje.DataMbarimit)
+                return BadRequest(new { success = false, message = "Kodi i zbritjes ka skaduar ose s'ka filluar ende." });
+            if (zbritje.HereshShfrytezuar >= zbritje.LimitiPerdorimit)
+                return BadRequest(new { success = false, message = "Kodi i zbritjes ka arritur limitin e perdorimit." });
+
+            cmimiFinal = Math.Round(dto.CmimiTotal * (1 - zbritje.PerqindjaZbritjes / 100m), 2);
+            zbritje.HereshShfrytezuar += 1;
+        }
+
+        // Apply loyalty-point redemption (100 pts = €1).
+        // We validate against the current balance to prevent overdraw.
+        var pikatPerdorur = Math.Max(0, dto.PikatPerdorur);
+        if (pikatPerdorur > 0)
+        {
+            var balance = await _db.KlientPikat
+                .Where(p => p.KlientId == dto.KlientId)
+                .SumAsync(p => (int?)p.Pike) ?? 0;
+            if (pikatPerdorur > balance)
+                return BadRequest(new { success = false, message = $"Pikë të pamjaftueshme. Disponueshme: {balance}." });
+            var ulja = Math.Round((decimal)pikatPerdorur / 100m, 2);
+            cmimiFinal = Math.Max(0, cmimiFinal - ulja);
+        }
+
         produkt.SasiaStok -= dto.Sasia;
 
-        var s = new ShitjeProdukteve { KlientId = dto.KlientId, ProduktId = dto.ProduktId, Sasia = dto.Sasia, CmimiTotal = dto.CmimiTotal, DataShitjes = DateTime.UtcNow, TipiPageses = dto.TipiPageses, StatusiPageses = dto.StatusiPageses };
+        var s = new ShitjeProdukteve { KlientId = dto.KlientId, ProduktId = dto.ProduktId, Sasia = dto.Sasia, CmimiTotal = cmimiFinal, DataShitjes = DateTime.UtcNow, TipiPageses = dto.TipiPageses, StatusiPageses = dto.StatusiPageses };
         _db.ShitjetProduktet.Add(s);
         await _db.SaveChangesAsync();
         await _audit.LogAsync("CREATE", "Shitje", s.ShitjeId.ToString(), null, dto);
+
+        // Loyalty ledger: record redemption (negative) and earn (positive, 1 pt per €1).
+        if (pikatPerdorur > 0)
+        {
+            _db.KlientPikat.Add(new KlientPika
+            {
+                KlientId = s.KlientId,
+                Pike = -pikatPerdorur,
+                Tipi = "ShitjeBlerje",
+                LidhjeId = s.ShitjeId,
+                Shenim = $"Përdorur për shitje #{s.ShitjeId}",
+            });
+        }
+        var pikaFituar = (int)Math.Floor(cmimiFinal);
+        if (pikaFituar > 0)
+        {
+            _db.KlientPikat.Add(new KlientPika
+            {
+                KlientId = s.KlientId,
+                Pike = pikaFituar,
+                Tipi = "ShitjeBlerje",
+                LidhjeId = s.ShitjeId,
+                Shenim = $"Fituar nga shitja #{s.ShitjeId}",
+            });
+        }
+        if (pikatPerdorur > 0 || pikaFituar > 0) await _db.SaveChangesAsync();
 
         // Notify if stock dropped to low threshold
         if (produkt.SasiaStok <= 10)
@@ -569,7 +799,17 @@ public class ShitjetController : ControllerBase
             });
         }
 
-        return CreatedAtAction(nameof(GetById), new { id = s.ShitjeId }, s);
+        // Project to DTO to avoid serializing the tracked entity graph (object-cycle safe).
+        var klientName = await _db.Klientet.AsNoTracking()
+            .Where(k => k.KlientId == s.KlientId)
+            .Select(k => k.Emri + " " + k.Mbiemri)
+            .FirstOrDefaultAsync() ?? "";
+        var response = new ShitjeResponseDto(
+            s.ShitjeId, s.KlientId, klientName,
+            s.ProduktId, produkt.EmriProduktit,
+            s.Sasia, s.CmimiTotal, s.DataShitjes,
+            s.TipiPageses, s.StatusiPageses);
+        return CreatedAtAction(nameof(GetById), new { id = s.ShitjeId }, response);
     }
 
     [HttpPatch("{id}/pagesa")]
