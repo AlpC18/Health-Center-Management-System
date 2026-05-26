@@ -1,15 +1,35 @@
+# Node
 node_modules/
 .npm-cache/
 dist/
+*.log
+
+# .NET
 bin/
 obj/
+*.user
+TestResults/
+wwwroot/
+
+# Local DB / runtime
 *.db
 *.db-shm
 *.db-wal
 *.pid
-*.log
-backend_log.txt
-appsettings.Development.json
+
+# Secrets / env
 .env
 .env.local
+appsettings.Development.json
+backend_log.txt
+
+# Editor / OS
 .DS_Store
+.idea/
+.vs/
+.vscode/
+.claude/
+
+# Legacy / backups
+_legacy_sqlite_backend/
+_migrations_backup/
