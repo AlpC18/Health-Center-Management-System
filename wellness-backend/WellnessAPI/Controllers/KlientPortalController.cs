@@ -7,6 +7,7 @@ using WellnessAPI.Data;
 using WellnessAPI.DTOs;
 using WellnessAPI.Models.Domain;
 using WellnessAPI.Models.Identity;
+using WellnessAPI.Services;
 
 namespace WellnessAPI.Controllers;
 
@@ -17,13 +18,40 @@ public class KlientPortalController : ControllerBase
 {
     private readonly ApplicationDbContext _db;
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly EmailService _email;
+    private readonly ILogger<KlientPortalController> _logger;
 
     public KlientPortalController(
         ApplicationDbContext db,
-        UserManager<ApplicationUser> userManager)
+        UserManager<ApplicationUser> userManager,
+        EmailService email,
+        ILogger<KlientPortalController> logger)
     {
         _db = db;
         _userManager = userManager;
+        _email = email;
+        _logger = logger;
+    }
+
+    private async Task SendPortalBookingEmailAsync(Termin t)
+    {
+        try
+        {
+            // AsNoTracking + scalar projection: avoid attaching the Klient entity
+            // (which would create a JSON cycle on the response).
+            var k = await _db.Klientet.AsNoTracking()
+                .Where(x => x.KlientId == t.KlientId)
+                .Select(x => new { x.Email, x.Emri })
+                .FirstOrDefaultAsync();
+            if (k is not null && !string.IsNullOrWhiteSpace(k.Email))
+                await _email.SendEmailAsync(k.Email,
+                    "Konfirmim i terminit - Wellness House",
+                    $"Pershendetje {k.Emri},\n\nRezervimi juaj u krye per {t.DataTerminit:dd/MM/yyyy} ne oren {t.OraFillimit:hh\\:mm}.\n\nWellness House");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Email i konfirmimit (portal) deshtoi per terminin {TerminId}", t.TerminId);
+        }
     }
 
     private async Task<int?> GetKlientIdAsync()
@@ -142,7 +170,7 @@ public class KlientPortalController : ControllerBase
         var klientId = await GetKlientIdAsync();
         if (klientId == null) return NotFound();
 
-        // SQLite cannot translate DateTime.Date or complex TimeSpan overlap math
+        // Day-range filter runs server-side; time-overlap is checked in memory
         // into SQL, so we narrow down server-side with translatable predicates and
         // then evaluate the overlap rule in memory.
         var dayStart = dto.DataTerminit.Date;
@@ -166,6 +194,10 @@ public class KlientPortalController : ControllerBase
                 message = "Terapisti është i zënë në këtë orë. Zgjidhni orë tjetër."
             });
 
+        if (await _db.Pushimet.AnyAsync(p => p.TerapistId == dto.TerapistId
+                && p.Statusi == "Aprovuar" && p.DataFillimit < dayEnd && p.DataMbarimit >= dayStart))
+            return Conflict(new { message = "Terapisti është në pushim në këtë datë. Zgjidhni datë tjetër." });
+
         var termin = new Termin
         {
             KlientId = klientId.Value,
@@ -179,6 +211,7 @@ public class KlientPortalController : ControllerBase
         };
         _db.Terminet.Add(termin);
         await _db.SaveChangesAsync();
+        await SendPortalBookingEmailAsync(termin);
         return Ok(new { message = "Termini u rezervua!", terminId = termin.TerminId });
     }
 

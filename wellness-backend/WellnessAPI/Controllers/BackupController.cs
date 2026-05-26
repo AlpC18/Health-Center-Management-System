@@ -1,5 +1,10 @@
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using WellnessAPI.Data;
 
 namespace WellnessAPI.Controllers;
 
@@ -8,29 +13,49 @@ namespace WellnessAPI.Controllers;
 [Authorize(Roles = "Admin")]
 public class BackupController : ControllerBase
 {
-    private readonly IWebHostEnvironment _env;
+    private readonly ApplicationDbContext _db;
 
-    public BackupController(IWebHostEnvironment env) => _env = env;
+    public BackupController(ApplicationDbContext db) => _db = db;
 
+    /// <summary>
+    /// Exports a logical, portable backup of all business data as JSON.
+    /// Provider-agnostic (works on MySQL, SQLite, etc.). Authentication and
+    /// token tables are intentionally excluded for security.
+    /// </summary>
     [HttpGet("database")]
-    public IActionResult ExportDatabase()
+    public async Task<IActionResult> ExportDatabase()
     {
-        // SQLite database file path (from root)
-        var dbPath = Path.Combine(Directory.GetCurrentDirectory(), "wellness.db");
+        var backup = new
+        {
+            generatedAt = DateTime.UtcNow,
+            klientet = await _db.Klientet.AsNoTracking().ToListAsync(),
+            sherbimet = await _db.Sherbimet.AsNoTracking().ToListAsync(),
+            terapistet = await _db.Terapistet.AsNoTracking().ToListAsync(),
+            terminet = await _db.Terminet.AsNoTracking().ToListAsync(),
+            paketaWellness = await _db.PaketaWellness.AsNoTracking().ToListAsync(),
+            anetaresimet = await _db.Anetaresimet.AsNoTracking().ToListAsync(),
+            programet = await _db.Programet.AsNoTracking().ToListAsync(),
+            klientProgramet = await _db.KlientProgramet.AsNoTracking().ToListAsync(),
+            produktet = await _db.Produktet.AsNoTracking().ToListAsync(),
+            shitjetProduktet = await _db.ShitjetProduktet.AsNoTracking().ToListAsync(),
+            vlereisimet = await _db.Vlereisimet.AsNoTracking().ToListAsync(),
+            sallat = await _db.Sallat.AsNoTracking().ToListAsync(),
+            furnizuesit = await _db.Furnizuesit.AsNoTracking().ToListAsync(),
+            lajmerimet = await _db.Lajmerimet.AsNoTracking().ToListAsync(),
+            zbritjet = await _db.Zbritjet.AsNoTracking().ToListAsync(),
+            pushimet = await _db.Pushimet.AsNoTracking().ToListAsync(),
+        };
 
-        if (!System.IO.File.Exists(dbPath))
-            return NotFound(new { message = "Veritabanı dosyası bulunamadı." });
+        var options = new JsonSerializerOptions
+        {
+            WriteIndented = true,
+            ReferenceHandler = ReferenceHandler.IgnoreCycles,
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+        };
 
-        // Generate a filename with current date
-        var fileName = $"WellnessBackup_{DateTime.Now:yyyyMMdd_HHmm}.db";
-
-        // Read bytes to allow file access even if DB is open (In some cases might need Copy)
-        var tempFile = Path.Combine(Path.GetTempPath(), fileName);
-        System.IO.File.Copy(dbPath, tempFile, true);
-        
-        var bytes = System.IO.File.ReadAllBytes(tempFile);
-        System.IO.File.Delete(tempFile);
-
-        return File(bytes, "application/x-sqlite3", fileName);
+        var json = JsonSerializer.Serialize(backup, options);
+        var bytes = Encoding.UTF8.GetBytes(json);
+        var fileName = $"WellnessBackup_{DateTime.Now:yyyyMMdd_HHmm}.json";
+        return File(bytes, "application/json", fileName);
     }
 }
