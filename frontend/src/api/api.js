@@ -129,9 +129,18 @@ export const terminetApi = {
   getMy: () => api.get('/terminet/my')
 }
 
+// Build a query string for optional date-range params.
+const dateRangeQs = (from, to) => {
+  const p = new URLSearchParams()
+  if (from) p.set('from', from)
+  if (to) p.set('to', to)
+  const s = p.toString()
+  return s ? `?${s}` : ''
+}
+
 export const dashboardApi = {
-  getStats: () => api.get('/dashboard/stats'),
-  getAnalytics: () => api.get('/dashboard/analytics'),
+  getStats: ({ from, to } = {}) => api.get(`/dashboard/stats${dateRangeQs(from, to)}`),
+  getAnalytics: ({ from, to } = {}) => api.get(`/dashboard/analytics${dateRangeQs(from, to)}`),
   getLowStock: (threshold = 10) => api.get(`/dashboard/low-stock?threshold=${threshold}`),
 }
 
@@ -173,6 +182,46 @@ export const lajmerimetApi = crudApi('/lajmerimet')
 export const zbritjetApi = crudApi('/zbritjet')
 export const pushimetApi = crudApi('/pushimet')
 
+// ── Phase-2 wellness extensions ─────────────────────────────────────────────
+// Clinical notes (per-visit anamnesis log)
+export const klientShenimeApi = {
+  ...crudApi('/klientshenime'),
+  forKlient: (klientId) => api.get(`/klientshenime?klientId=${klientId}&limit=200`),
+  forTermin: (terminId) => api.get(`/klientshenime?terminId=${terminId}&limit=50`),
+}
+
+// Body measurements
+export const klientMatjetApi = {
+  ...crudApi('/klientmatjet'),
+  forKlient: (klientId) => api.get(`/klientmatjet?klientId=${klientId}&limit=200`),
+}
+
+// Loyalty points ledger
+export const klientPikatApi = {
+  list: (klientId) => api.get(`/klientpikat?klientId=${klientId}&limit=200`),
+  balance: (klientId) => api.get(`/klientpikat/balance/${klientId}`),
+  create: (data) => api.post('/klientpikat', data),
+}
+
+// Therapist self-service portal
+export const therapistPortalApi = {
+  me: () => api.get('/terapist-portal/me'),
+  mySchedule: (from, to) => {
+    const p = new URLSearchParams()
+    if (from) p.set('from', from)
+    if (to) p.set('to', to)
+    const qs = p.toString()
+    return api.get(`/terapist-portal/my-schedule${qs ? '?' + qs : ''}`)
+  },
+  myClients: () => api.get('/terapist-portal/my-clients'),
+  completeAppointment: (terminId) => api.post(`/terapist-portal/appointments/${terminId}/complete`),
+}
+
+// Recurring termin booking
+export const recurringTerminetApi = {
+  create: (data) => api.post('/terminet/recurring', data),
+}
+
 export default api
 
 export const portalApi = {
@@ -193,3 +242,9 @@ export const portalApi = {
   addVleresim: (data) => api.post('/portal/vlereisimet', data),
   getProgramet: () => api.get('/portal/programet'),
 }
+
+// Boot-time session restore using the httpOnly refresh cookie.
+// Bare axios call (no interceptors) so a missing/expired cookie simply rejects
+// instead of triggering the 401 refresh-and-redirect flow.
+export const refreshSession = () =>
+  axios.post(`${BASE_URL}/auth/refresh`, {}, { withCredentials: true })
