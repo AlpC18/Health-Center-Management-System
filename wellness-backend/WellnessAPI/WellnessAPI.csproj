@@ -9,16 +9,6 @@
     <NoWarn>$(NoWarn);1591</NoWarn>
   </PropertyGroup>
 
-  <ItemGroup>
-    <!--
-      The MigrationsMySql folder contains MySQL-only migrations.
-      We currently run SQLite (see appsettings.json), so excluding them
-      prevents EF from trying to apply MySQL SQL on SQLite.
-      Re-enable by removing this block when switching to MySQL.
-    -->
-    <Compile Remove="MigrationsMySql\**\*.cs" />
-    <None Include="MigrationsMySql\**\*.cs" />
-  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="AspNetCoreRateLimit" Version="5.0.0" />
@@ -33,7 +23,6 @@
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="9.0.0" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="9.0.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="9.0.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="9.0.0">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

@@ -18,8 +18,16 @@ var builder = WebApplication.CreateBuilder(args);
 // 1. DB
 builder.Services.AddDbContext<ApplicationDbContext>(o =>
 {
-    o.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection"));
-    o.ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
+    if (builder.Environment.IsEnvironment("Testing"))
+    {
+        o.UseInMemoryDatabase("WellnessApiTests");
+    }
+    else
+    {
+        var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+        // AutoDetect adapts to whatever the team runs: MariaDB (XAMPP) or MySQL (Laragon/Docker).
+        o.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString));
+    }
 });
 
 // 2. Identity
@@ -27,6 +35,9 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>(o => {
     o.Password.RequireDigit = true;
     o.Password.RequiredLength = 8;
     o.User.RequireUniqueEmail = true;
+    o.Lockout.MaxFailedAccessAttempts = 5;
+    o.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
+    o.Lockout.AllowedForNewUsers = true;
 })
 .AddEntityFrameworkStores<ApplicationDbContext>()
 .AddDefaultTokenProviders();
@@ -122,80 +133,11 @@ using (var scope = app.Services.CreateScope())
     var um = sp.GetRequiredService<UserManager<ApplicationUser>>();
     var rm = sp.GetRequiredService<RoleManager<IdentityRole>>();
 
-    db.Database.Migrate();
-
-    // Defensive schema patch: the AddAdressaToUser migration in this repo
-    // was committed without the EF Designer partial, so EF skips it.
-    // We ensure the column exists here so seeding and Identity queries work.
-    try
+    if (db.Database.IsRelational())
     {
-        db.Database.ExecuteSqlRaw("ALTER TABLE \"AspNetUsers\" ADD COLUMN \"Adresa\" TEXT NULL");
+        db.Database.Migrate();
+
     }
-    catch (Microsoft.Data.Sqlite.SqliteException) { /* column already exists */ }
-
-    // Bootstrap tables for the additional CRUD entities.
-    // Idempotent: CREATE TABLE IF NOT EXISTS won't touch existing tables.
-    var ddl = new[]
-    {
-        @"CREATE TABLE IF NOT EXISTS ""Sallat"" (
-            ""SallaId"" INTEGER NOT NULL CONSTRAINT ""PK_Sallat"" PRIMARY KEY AUTOINCREMENT,
-            ""Emri"" TEXT NOT NULL,
-            ""Kapaciteti"" INTEGER NOT NULL,
-            ""Tipi"" TEXT NULL,
-            ""Pershkrimi"" TEXT NULL,
-            ""Aktive"" INTEGER NOT NULL DEFAULT 1
-        );",
-        @"CREATE UNIQUE INDEX IF NOT EXISTS ""IX_Sallat_Emri"" ON ""Sallat"" (""Emri"");",
-
-        @"CREATE TABLE IF NOT EXISTS ""Furnizuesit"" (
-            ""FurnizuesId"" INTEGER NOT NULL CONSTRAINT ""PK_Furnizuesit"" PRIMARY KEY AUTOINCREMENT,
-            ""Emri"" TEXT NOT NULL,
-            ""KontaktPersona"" TEXT NULL,
-            ""Email"" TEXT NULL,
-            ""Telefoni"" TEXT NULL,
-            ""Adresa"" TEXT NULL,
-            ""Aktiv"" INTEGER NOT NULL DEFAULT 1,
-            ""DataRegjistrimit"" TEXT NOT NULL
-        );",
-        @"CREATE INDEX IF NOT EXISTS ""IX_Furnizuesit_Emri"" ON ""Furnizuesit"" (""Emri"");",
-
-        @"CREATE TABLE IF NOT EXISTS ""Lajmerimet"" (
-            ""LajmerimId"" INTEGER NOT NULL CONSTRAINT ""PK_Lajmerimet"" PRIMARY KEY AUTOINCREMENT,
-            ""Titulli"" TEXT NOT NULL,
-            ""Permbajtja"" TEXT NOT NULL,
-            ""Audienca"" TEXT NOT NULL DEFAULT 'All',
-            ""Prioriteti"" TEXT NOT NULL DEFAULT 'Mesem',
-            ""DataKrijimit"" TEXT NOT NULL,
-            ""DataSkadimit"" TEXT NULL,
-            ""Aktiv"" INTEGER NOT NULL DEFAULT 1
-        );",
-        @"CREATE INDEX IF NOT EXISTS ""IX_Lajmerimet_DataKrijimit"" ON ""Lajmerimet"" (""DataKrijimit"");",
-
-        @"CREATE TABLE IF NOT EXISTS ""Zbritjet"" (
-            ""ZbritjeId"" INTEGER NOT NULL CONSTRAINT ""PK_Zbritjet"" PRIMARY KEY AUTOINCREMENT,
-            ""Kodi"" TEXT NOT NULL,
-            ""PerqindjaZbritjes"" decimal(5,2) NOT NULL,
-            ""DataFillimit"" TEXT NOT NULL,
-            ""DataMbarimit"" TEXT NOT NULL,
-            ""LimitiPerdorimit"" INTEGER NOT NULL DEFAULT 100,
-            ""HereshShfrytezuar"" INTEGER NOT NULL DEFAULT 0,
-            ""Aktive"" INTEGER NOT NULL DEFAULT 1
-        );",
-        @"CREATE UNIQUE INDEX IF NOT EXISTS ""IX_Zbritjet_Kodi"" ON ""Zbritjet"" (""Kodi"");",
-
-        @"CREATE TABLE IF NOT EXISTS ""Pushimet"" (
-            ""PushimId"" INTEGER NOT NULL CONSTRAINT ""PK_Pushimet"" PRIMARY KEY AUTOINCREMENT,
-            ""TerapistId"" INTEGER NOT NULL,
-            ""DataFillimit"" TEXT NOT NULL,
-            ""DataMbarimit"" TEXT NOT NULL,
-            ""Arsyeja"" TEXT NULL,
-            ""Statusi"" TEXT NOT NULL DEFAULT 'Kerkuar',
-            ""DataKerkimit"" TEXT NOT NULL
-        );",
-        @"CREATE INDEX IF NOT EXISTS ""IX_Pushimet_TerapistId"" ON ""Pushimet"" (""TerapistId"");",
-        @"CREATE INDEX IF NOT EXISTS ""IX_Pushimet_Statusi"" ON ""Pushimet"" (""Statusi"");",
-    };
-    foreach (var sql in ddl) db.Database.ExecuteSqlRaw(sql);
 
     SeedData.SeedAsync(db, um, rm).Wait();
 }
@@ -205,10 +147,16 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
-app.UseHttpsRedirection();
+if (!app.Environment.IsDevelopment() && !app.Environment.IsEnvironment("Testing"))
+{
+    app.UseHttpsRedirection();
+}
 app.UseMiddleware<SecurityHeadersMiddleware>();
 app.UseMiddleware<ErrorHandlingMiddleware>();
-app.UseIpRateLimiting();
+if (!app.Environment.IsEnvironment("Testing"))
+{
+    app.UseIpRateLimiting();
+}
 app.UseStaticFiles();
 app.UseSwagger();
 app.UseSwaggerUI();
@@ -220,3 +168,5 @@ app.MapControllers();
 app.MapHub<NotificationHub>("/notificationHub");
 
 app.Run();
+
+public partial class Program { }
