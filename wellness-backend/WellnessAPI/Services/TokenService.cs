@@ -28,6 +28,9 @@ public class TokenService
     {
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"]!));
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+        var expiryMinutes = int.TryParse(_config["Jwt:ExpiryMinutes"], out var configuredExpiryMinutes)
+            ? configuredExpiryMinutes
+            : 15;
         var claims = new List<Claim>
         {
             new(JwtRegisteredClaimNames.Sub, user.Id),
@@ -47,7 +50,7 @@ public class TokenService
             issuer: _config["Jwt:Issuer"],
             audience: _config["Jwt:Audience"],
             claims: claims,
-            expires: DateTime.UtcNow.AddMinutes(15),
+            expires: DateTime.UtcNow.AddMinutes(expiryMinutes),
             signingCredentials: creds);
 
         return new JwtSecurityTokenHandler().WriteToken(token);

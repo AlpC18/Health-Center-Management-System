@@ -1,6 +1,8 @@
 using System.Security.Claims;
 using System.Text.Json;
+using Microsoft.AspNetCore.SignalR;
 using WellnessAPI.Data;
+using WellnessAPI.Hubs;
 using WellnessAPI.Models.Domain;
 
 namespace WellnessAPI.Services;
@@ -9,11 +11,13 @@ public class AuditService
 {
     private readonly ApplicationDbContext _db;
     private readonly IHttpContextAccessor _http;
+    private readonly IHubContext<NotificationHub> _hub;
 
-    public AuditService(ApplicationDbContext db, IHttpContextAccessor http)
+    public AuditService(ApplicationDbContext db, IHttpContextAccessor http, IHubContext<NotificationHub> hub)
     {
         _db = db;
         _http = http;
+        _hub = hub;
     }
 
     public async Task LogAsync(string action, string entity,
@@ -37,5 +41,20 @@ public class AuditService
             IpAddress = _http.HttpContext?.Connection.RemoteIpAddress?.ToString(),
         });
         await _db.SaveChangesAsync();
+
+        // Real-time notification on every successful CRUD write. Because every
+        // controller already calls LogAsync after a create/update/delete, this
+        // single broadcast covers all entities without per-controller changes.
+        await _hub.Clients.All.SendAsync(
+            NotificationEvents.ReceiveNotification,
+            BuildMessage(action, entity));
     }
+
+    private static string BuildMessage(string action, string entity) => action switch
+    {
+        "CREATE" => $"{entity} u shtua",
+        "UPDATE" => $"{entity} u përditësua",
+        "DELETE" => $"{entity} u fshi",
+        _ => $"{entity} u ndryshua",
+    };
 }
