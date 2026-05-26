@@ -1,8 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(dotnet build *)",
-      "PowerShell(& \"C:\\\\Program Files\\\\dotnet\\\\dotnet.exe\" build \"c:\\\\git\\\\Health-Center-Management-System\\\\wellness-backend\\\\WellnessAPI\\\\WellnessAPI.csproj\" --no-restore 2>&1)"
-    ]
-  }
-}
