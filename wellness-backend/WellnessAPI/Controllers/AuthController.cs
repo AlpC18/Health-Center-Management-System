@@ -22,6 +22,7 @@ public class AuthController : ControllerBase
     private readonly IWebHostEnvironment _env;
     private readonly EmailService _emailService;
     private readonly IConfiguration _configuration;
+    private readonly ILogger<AuthController> _logger;
 
     public AuthController(
         UserManager<ApplicationUser> um,
@@ -29,7 +30,8 @@ public class AuthController : ControllerBase
         ApplicationDbContext db,
         IWebHostEnvironment env,
         EmailService emailService,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        ILogger<AuthController> logger)
     {
         _userManager = um;
         _tokenService = ts;
@@ -37,13 +39,44 @@ public class AuthController : ControllerBase
         _env = env;
         _emailService = emailService;
         _configuration = configuration;
+        _logger = logger;
+    }
+
+    /// <summary>Confirms a user's email from the link sent at registration.</summary>
+    [HttpGet("confirm-email")]
+    public async Task<IActionResult> ConfirmEmail([FromQuery] string userId, [FromQuery] string token)
+    {
+        var user = await _userManager.FindByIdAsync(userId);
+        if (user is null) return BadRequest(new { message = "Perdoruesi nuk u gjet." });
+        var result = await _userManager.ConfirmEmailAsync(user, token);
+        return result.Succeeded
+            ? Ok(new { message = "Email-i u konfirmua me sukses." })
+            : BadRequest(new { message = "Konfirmimi deshtoi ose linku ka skaduar." });
+    }
+
+    // Best-effort: send an email-confirmation link. Never blocks registration
+    // (SMTP may be unconfigured in dev), so failures are logged, not thrown.
+    private async Task SendEmailConfirmationAsync(ApplicationUser user)
+    {
+        try
+        {
+            var token = await _userManager.GenerateEmailConfirmationTokenAsync(user);
+            var link = $"http://localhost:5077/api/auth/confirm-email?userId={user.Id}&token={Uri.EscapeDataString(token)}";
+            await _emailService.SendEmailAsync(user.Email!,
+                "Konfirmo email-in - Wellness House",
+                $"Pershendetje {user.FirstName},\n\nKonfirmo email-in duke klikuar: {link}\n\nWellness House");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Email i konfirmimit deshtoi per {Email}", user.Email);
+        }
     }
 
     [HttpPost("register")]
     public async Task<ActionResult<AuthResponseDto>> Register([FromBody] RegisterDto dto)
     {
         if (await _userManager.FindByEmailAsync(dto.Email) is not null)
-            return Conflict(new { message = "EXISTING_ACCOUNT", text = "Kjo llogari ekziston. Ju lutem hyni ne sistem." });
+            return BadRequest(new { success = false, message = "EXISTING_ACCOUNT", text = "Kjo llogari ekziston. Ju lutem hyni ne sistem." });
 
         var user = new ApplicationUser
         {
@@ -75,26 +108,39 @@ public class AuthController : ControllerBase
             await _userManager.UpdateAsync(user);
         }
 
+        await SendEmailConfirmationAsync(user);
+
         var ip = HttpContext.Connection.RemoteIpAddress?.ToString();
         var access = await _tokenService.GenerateAccessTokenAsync(user);
         var refresh = await _tokenService.GenerateRefreshTokenAsync(user, ip);
 
         WriteRefreshCookie(refresh.RawToken, refresh.StoredToken.ExpiresAt);
 
-        return Ok(_tokenService.BuildAuthResponse(
+        var authResponse = _tokenService.BuildAuthResponse(
             user,
             access,
             refresh.RawToken,
             refresh.StoredToken.ExpiresAt,
-            role));
+            role);
+        return Ok(CompatAuthResponse(authResponse));
     }
 
     [HttpPost("login")]
     public async Task<ActionResult<AuthResponseDto>> Login([FromBody] LoginDto dto)
     {
         var user = await _userManager.FindByEmailAsync(dto.Email);
-        if (user is null || !await _userManager.CheckPasswordAsync(user, dto.Password))
+        if (user is null)
             return Unauthorized(new { message = "Email ose fjalekalim i gabuar." });
+
+        if (await _userManager.IsLockedOutAsync(user))
+            return Unauthorized(new { message = "Llogaria eshte bllokuar perkohesisht (shume perpjekje). Provoni me vone." });
+
+        if (!await _userManager.CheckPasswordAsync(user, dto.Password))
+        {
+            await _userManager.AccessFailedAsync(user);   // count toward lockout
+            return Unauthorized(new { message = "Email ose fjalekalim i gabuar." });
+        }
+        await _userManager.ResetAccessFailedCountAsync(user);   // success -> reset counter
 
         var roles = await _userManager.GetRolesAsync(user);
         var role = roles.FirstOrDefault() ?? "Klient";
@@ -105,12 +151,13 @@ public class AuthController : ControllerBase
 
         WriteRefreshCookie(refresh.RawToken, refresh.StoredToken.ExpiresAt);
 
-        return Ok(_tokenService.BuildAuthResponse(
+        var authResponse = _tokenService.BuildAuthResponse(
             user,
             access,
             refresh.RawToken,
             refresh.StoredToken.ExpiresAt,
-            role));
+            role);
+        return Ok(CompatAuthResponse(authResponse));
     }
 
     [HttpPost("refresh")]
@@ -133,12 +180,13 @@ public class AuthController : ControllerBase
 
             WriteRefreshCookie(rotation.NewRawRefreshToken, rotation.NewStoredRefreshToken.ExpiresAt);
 
-            return Ok(_tokenService.BuildAuthResponse(
+            var authResponse = _tokenService.BuildAuthResponse(
                 user,
                 rotation.AccessToken,
                 rotation.NewRawRefreshToken,
                 rotation.NewStoredRefreshToken.ExpiresAt,
-                role));
+                role);
+            return Ok(CompatAuthResponse(authResponse));
         }
         catch (UnauthorizedAccessException ex)
         {
@@ -162,7 +210,7 @@ public class AuthController : ControllerBase
         }
 
         DeleteRefreshCookie();
-        return Ok(new { message = "Ckycja u krye." });
+        return Ok(new { success = true, message = "Ckycja u krye." });
     }
 
     [HttpPut("change-password")]
@@ -179,7 +227,23 @@ public class AuthController : ControllerBase
 
         await _tokenService.RevokeAllTokensAsync(user.Id);
         DeleteRefreshCookie();
-        return Ok(new { message = "Fjalekalimi u ndryshua." });
+        return Ok(new { success = true, message = "Fjalekalimi u ndryshua." });
+    }
+
+    [HttpGet("me")]
+    [Authorize]
+    public async Task<IActionResult> Me()
+    {
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? User.FindFirst("sub")?.Value;
+        if (string.IsNullOrWhiteSpace(userId)) return Unauthorized();
+
+        var user = await _userManager.FindByIdAsync(userId);
+        if (user is null) return Unauthorized();
+
+        var roles = await _userManager.GetRolesAsync(user);
+        var role = roles.FirstOrDefault() ?? "Klient";
+        var userInfo = new UserInfoDto(user.Id, user.Email ?? "", user.FirstName, user.LastName, role, user.PhoneNumber, user.Adresa);
+        return Ok(CompatUserResponse(userInfo));
     }
 
 
@@ -201,7 +265,8 @@ public class AuthController : ControllerBase
         var refresh = await _tokenService.GenerateRefreshTokenAsync(user, HttpContext.Connection.RemoteIpAddress?.ToString());
         WriteRefreshCookie(refresh.RawToken, refresh.StoredToken.ExpiresAt);
 
-        return Ok(_tokenService.BuildAuthResponse(user, access, refresh.RawToken, refresh.StoredToken.ExpiresAt, role));
+        var authResponse = _tokenService.BuildAuthResponse(user, access, refresh.RawToken, refresh.StoredToken.ExpiresAt, role);
+        return Ok(CompatAuthResponse(authResponse));
     }
 
     [HttpPost("forgot-password")]
@@ -329,6 +394,40 @@ public class AuthController : ControllerBase
 
         return null;
     }
+
+    private static object CompatAuthResponse(AuthResponseDto response) => new
+    {
+        success = true,
+        accessToken = response.AccessToken,
+        refreshToken = response.RefreshToken,
+        expiresAt = response.ExpiresAt,
+        user = response.User,
+        data = new Dictionary<string, object?>
+        {
+            ["AccessToken"] = response.AccessToken,
+            ["RefreshToken"] = response.RefreshToken,
+            ["ExpiresAt"] = response.ExpiresAt,
+            ["User"] = CompatUserData(response.User)
+        }
+    };
+
+    private static object CompatUserResponse(UserInfoDto user) => new
+    {
+        success = true,
+        user,
+        data = CompatUserData(user)
+    };
+
+    private static Dictionary<string, object?> CompatUserData(UserInfoDto user) => new()
+    {
+        ["Id"] = user.Id,
+        ["Email"] = user.Email,
+        ["FirstName"] = user.FirstName,
+        ["LastName"] = user.LastName,
+        ["Role"] = user.Role,
+        ["Telefoni"] = user.Telefoni,
+        ["Adresa"] = user.Adresa
+    };
 
     private void WriteRefreshCookie(string refreshToken, DateTime expiresAt)
     {
