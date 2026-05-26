@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Users, Printer, FileSpreadsheet } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { Users, Printer, FileSpreadsheet, FolderOpen } from 'lucide-react'
 import CrudPage from '../../components/crud/CrudPage'
 import { KlientForm } from '../../components/crud/Forms'
 import { klientetApi } from '../../api/api'
@@ -67,9 +68,14 @@ export function KlientetPage() {
             key: 'emri',
             label: 'Emri & Mbiemri',
             render: (item) => (
-              <span className="font-bold text-health-primary">
+              <Link
+                to={`/klientet/${item.klientId}`}
+                className="font-bold text-health-primary hover:text-health-accent transition-colors flex items-center gap-1.5"
+                title="Hap profilin klinik"
+              >
+                <FolderOpen className="w-3 h-3 opacity-60" />
                 {item.emri} {item.mbiemri}
-              </span>
+              </Link>
             ),
           },
           { key: 'email', label: 'Email' },
