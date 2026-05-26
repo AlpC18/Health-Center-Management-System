@@ -224,3 +224,46 @@ public class Pushimi
     public string Statusi { get; set; } = "Kerkuar";
     public DateTime DataKerkimit { get; set; } = DateTime.UtcNow;
 }
+
+// ── Clinical notes (anamnese/treatment log) — per-visit history ──────────────
+// One Klient -> many KlientShenime; optionally linked to a Termin.
+public class KlientShenim
+{
+    public int ShenimId { get; set; }
+    public int KlientId { get; set; }
+    public int? TerminId { get; set; }              // optional: tied to a specific visit
+    public int? TerapistId { get; set; }            // author (nullable for admin notes)
+    public string Tipi { get; set; } = "Vezhgim";   // Anamnese | Trajtim | Vezhgim | Plan | Tjeter
+    public string Permbajtja { get; set; } = string.Empty;
+    public bool Privat { get; set; } = false;       // true = therapist+admin only
+    public DateTime DataKrijimit { get; set; } = DateTime.UtcNow;
+}
+
+// ── Body measurements / progress tracking ────────────────────────────────────
+public class KlientMatje
+{
+    public int MatjeId { get; set; }
+    public int KlientId { get; set; }
+    public DateTime DataMatjes { get; set; } = DateTime.UtcNow;
+    public decimal? PeshaKg { get; set; }
+    public decimal? GjatesiaCm { get; set; }
+    public decimal? YndyraTrupore { get; set; }     // body fat %
+    public decimal? BeliCm { get; set; }            // waist
+    public decimal? KofshaCm { get; set; }          // hip
+    public string? Shenim { get; set; }
+}
+
+// ── Loyalty ledger ───────────────────────────────────────────────────────────
+// Positive Pike = earned; negative Pike = redeemed.
+// Tipi: "ShitjeBlerje" | "Termin" | "Shperblim" | "Tjeter"
+// LidhjeId optionally references the originating sale or appointment.
+public class KlientPika
+{
+    public int PikaId { get; set; }
+    public int KlientId { get; set; }
+    public int Pike { get; set; }
+    public string Tipi { get; set; } = "Tjeter";
+    public int? LidhjeId { get; set; }
+    public string? Shenim { get; set; }
+    public DateTime DataKrijimit { get; set; } = DateTime.UtcNow;
+}
