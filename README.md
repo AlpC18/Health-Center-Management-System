@@ -14,7 +14,7 @@ If you just want to get the app running on your Mac, follow these steps in order
 
 ### 0. One-time tool install
 
-You need **Homebrew**, **Node.js (v18+)** and the **.NET 9 SDK**. Open Terminal and run:
+You need **Homebrew**, **Node.js (v18+)**, the **.NET 9 SDK**, and a **MySQL/MariaDB server** — use **XAMPP**, **Laragon**, or **Docker** (any one). Open Terminal and run:
 
 ```bash
 # Homebrew (skip if you already have it — check with: brew --version)
@@ -22,6 +22,10 @@ You need **Homebrew**, **Node.js (v18+)** and the **.NET 9 SDK**. Open Terminal 
 
 # Node.js (skip if `node --version` is already 18 or higher)
 brew install node
+
+# A database — pick ONE: XAMPP, Laragon, or Docker Desktop. e.g.:
+brew install --cask docker            # Docker (launch it once), or
+# brew install --cask xampp           # XAMPP, or install Laragon (Windows)
 
 # .NET 9 SDK — installed to ~/.dotnet, no sudo needed
 curl -sSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh
@@ -49,16 +53,28 @@ npm --version    # → 9 or higher
 dotnet --version # → 9.0.x
 ```
 
-### 1. One-shot launch
+### 1. Start the database, then one-shot launch
 
-From the repo root:
+Start a MySQL/MariaDB server using **any one** of these (all use port 3306, root, empty password):
 
 ```bash
-cd ~/Downloads/Health-Center-Management-System-main
+# XAMPP:   open XAMPP and click "Start MySQL"
+# Laragon: open Laragon and click "Start All"   (Windows)
+# Docker:  cd wellness-backend && docker compose up -d && cd ..
+```
+
+Create a database named `wellnessdb` (phpMyAdmin / HeidiSQL → New → `wellnessdb`;
+with Docker it's created automatically). Then launch the app from the repo root:
+
+```bash
 ./START.sh
 ```
 
+> The defaults already work with all three — no `.env` needed. Copy `.env.example` to `.env` only to override DB credentials.
+
 `START.sh` cleans up old processes, starts the backend on port `5077`, waits for it to be ready, starts the frontend on port `5173`, and opens your browser. Logs are written to `backend.log` and `frontend.log` in the repo root.
+
+> **Windows:** use `START.ps1` instead — open PowerShell in the repo root and run `./START.ps1`. Start your database first (Laragon "Start All", XAMPP "Start MySQL", or `docker compose up -d` in `wellness-backend`) and create the `wellnessdb` database.
 
 ### 2. Open the app
 
@@ -88,12 +104,12 @@ cd ~/Downloads/Health-Center-Management-System-main && ./START.sh
 
 ### 5. Environment variables you should know
 
-The repo ships with safe development defaults. The only secret you typically configure is the JWT signing key.
+The repo ships with safe development defaults. Copy `.env.example` to `.env` (repo root) to override any of these — `START.sh`/`START.ps1` load it automatically. The only secret you typically configure is the JWT signing key.
 
 | Variable | Where | Purpose | Default for dev |
 |----------|-------|---------|-----------------|
 | `Jwt__Key` (env) or `Jwt:Key` (config) | backend | Signs JWT access tokens. **Must not be the placeholder.** | A real key has been put in `wellness-backend/WellnessAPI/appsettings.Development.json` (gitignored). |
-| `ConnectionStrings__DefaultConnection` | backend | SQLite connection string | `Data Source=wellness.db` (file in `wellness-backend/WellnessAPI/`) |
+| `ConnectionStrings__DefaultConnection` | backend | MySQL/MariaDB connection (engine auto-detected) | `Server=localhost;Port=3306;Database=wellnessdb;User=root;Password=;` (XAMPP/Laragon/Docker default) |
 | `ASPNETCORE_URLS` | backend | What URL Kestrel listens on | `http://localhost:5077` |
 | `VITE_API_BASE_URL` | frontend | Where the React app calls the API | `http://localhost:5077/api` |
 
@@ -113,7 +129,7 @@ dotnet user-secrets set "Jwt:Key" "$(openssl rand -base64 48)"
 | `Address already in use :5077` or `:5173` | Old run still alive | `lsof -ti :5077 :5173 \| xargs kill -9` |
 | Browser shows "This site can't be reached" | Backend crashed during startup | Check `backend.log` in repo root, fix the error, run `./START.sh` again |
 | `Jwt:Key must be provided ...` exception | `appsettings.Development.json` missing | Recreate it (see "Environment variables" above) or set `export Jwt__Key="$(openssl rand -base64 48)"` before `dotnet run` |
-| Login page returns 500 | Database file is corrupt from a previous half-failed run | `rm wellness-backend/WellnessAPI/wellness.db*` and restart — it will be recreated and reseeded automatically |
+| Login page returns 500 | API can't reach MySQL | Start MySQL: `cd wellness-backend && docker compose up -d`. Reset data if needed: `docker compose down -v && docker compose up -d` |
 | Apple Silicon: "bad CPU type" running a binary | An old x86 dotnet was installed via Rosetta | Remove `/usr/local/share/dotnet`, use the `~/.dotnet` arm64 build above |
 
 ### 7. Folder layout (what each thing is)
@@ -127,7 +143,7 @@ Health-Center-Management-System-main/
 │
 ├── wellness-backend/             # the backend solution
 │   ├── Wellness.sln              # .NET solution file
-│   ├── MYSQL_SETUP.md            # optional MySQL configuration notes
+│   ├── MYSQL_SETUP.md            # MySQL setup guide
 │   └── WellnessAPI/              # ASP.NET Core 9 Web API (the API project)
 │       ├── Program.cs            # boots the app, configures DI, JWT, CORS, Swagger
 │       ├── appsettings.json      # default config (committed)
@@ -136,7 +152,7 @@ Health-Center-Management-System-main/
 │       ├── Models/               # EF Core entities (Domain + Identity user)
 │       ├── DTOs/                 # Data-transfer objects exposed to the client
 │       ├── Data/                 # ApplicationDbContext + SeedData
-│       ├── Migrations/           # EF Core migrations for SQLite
+│       ├── Migrations/           # EF Core migrations (MySQL)
 │       ├── MigrationsMySql/      # MySQL-only migrations (excluded from build)
 │       ├── Services/             # TokenService, AuditService, EmailService, etc.
 │       ├── Validators/           # FluentValidation rules
@@ -171,7 +187,7 @@ dotnet run                     # build + run
 dotnet build                   # just build (faster check)
 dotnet test ../WellnessAPI.Tests   # run xUnit tests
 dotnet ef migrations add MyChange  # add a new migration
-dotnet ef database update      # apply migrations to wellness.db
+dotnet ef database update      # apply migrations to MySQL
 
 # --- Frontend only ---
 cd frontend
@@ -182,8 +198,10 @@ npm run preview                # preview the production build
 npm run lint                   # ESLint check
 
 # --- Reset the local database ---
-cd wellness-backend/WellnessAPI && rm -f wellness.db wellness.db-shm wellness.db-wal
-# Next `dotnet run` recreates it and reseeds it.
+# XAMPP/Laragon: drop & recreate in phpMyAdmin/HeidiSQL, or:
+#   mysql -u root -e "DROP DATABASE wellnessdb; CREATE DATABASE wellnessdb;"
+# Docker: cd wellness-backend && docker compose down -v && docker compose up -d
+# Next `dotnet run` re-applies migrations and reseeds the data.
 ```
 
 ---
@@ -194,7 +212,7 @@ cd wellness-backend/WellnessAPI && rm -f wellness.db wellness.db-shm wellness.db
 
 ### Backend (ASP.NET Core 9 Web API)
 - **JWT Authentication & Authorization**: Roles (Admin, Staff, Client) with refresh token rotation.
-- **Entity Framework Core**: Code-first approach with SQLite (easily translatable to MSSQL).
+- **Entity Framework Core**: Code-first approach with MySQL (Pomelo provider).
 - **Comprehensive CRUD Operations**: Fully functional endpoints for Clients, Therapists, Services (Sherbimet), Appointments (Terminet), Packages, Memberships, and Sales.
 - **Client Portal API**: Specifically isolated API layer `api/portal/*` ensuring clients only have access to their personal data.
 - **Security & Reliability**: Global Error Handling middleware, memory cache-based Rate Limiting, Audit Logging for tracking system changes.
@@ -237,13 +255,14 @@ Health-Center-Management-System/
 Before you start, ensure you have the following installed on your machine:
 - **[Node.js (v18+)](https://nodejs.org/)**: Required to run the React frontend environment.
 - **[.NET 9 SDK](https://dotnet.microsoft.com/)**: Required to build and run the C# backend API.
+- **MySQL/MariaDB** via **XAMPP**, **Laragon**, or **Docker** (any one): Required for the database.
 - **Git**: To clone the repository and manage version control.
 
 ---
 
 ### 1. How to Start the Backend (API)
 
-The backend uses **ASP.NET Core** and **Entity Framework Core**. It is responsible for serving data, authenticating users, and interacting with the SQLite database.
+The backend uses **ASP.NET Core** and **Entity Framework Core**. It is responsible for serving data, authenticating users, and interacting with the MySQL database.
 
 Open your terminal and follow these steps **(Terminal 1)**:
 
@@ -259,11 +278,14 @@ dotnet restore
 ```
 *What it does: This command downloads and installs all necessary NuGet packages (like Entity Framework, JWT Bearer, and FluentValidation) that the project needs to run locally.*
 
-**Step 3: Update the database and apply migrations**
+**Step 3: Start the database and apply migrations**
 ```bash
+# Start MySQL/MariaDB with ANY one of: XAMPP (Start MySQL), Laragon (Start All),
+# or Docker:  cd wellness-backend && docker compose up -d
+# Ensure a database named "wellnessdb" exists, then:
 dotnet ef database update
 ```
-*What it does: This is a critical step. It executes Entity Framework Core migrations. It will automatically generate a new `wellness.db` SQLite database file on your machine and seed it with initial admin and client data so you can test the system immediately.*
+*What it does: Runs Entity Framework Core migrations against `wellnessdb` and seeds initial admin and client data. The app also applies migrations automatically on `dotnet run`, so this step is optional.*
 *(Note: If the `dotnet ef` command is missing, install the tool globally by running `dotnet tool install --global dotnet-ef`)*
 
 **Step 4: Run the API application**
