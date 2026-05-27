@@ -34,6 +34,7 @@ public class TokenService
         var claims = new List<Claim>
         {
             new(JwtRegisteredClaimNames.Sub, user.Id),
+            new(ClaimTypes.NameIdentifier, user.Id),
             new(JwtRegisteredClaimNames.Email, user.Email ?? ""),
             new(JwtRegisteredClaimNames.GivenName, user.FirstName),
             new(JwtRegisteredClaimNames.FamilyName, user.LastName),
@@ -125,7 +126,7 @@ public class TokenService
 
     public AuthResponseDto BuildAuthResponse(ApplicationUser user, string access, string rawRefreshToken, DateTime refreshExpiresAt, string role) =>
         new(access, rawRefreshToken, refreshExpiresAt,
-            new UserInfoDto(user.Id, user.Email ?? "", user.FirstName, user.LastName, role, user.PhoneNumber, user.Adresa));
+            new UserInfoDto(user.Id, user.Email ?? "", user.FirstName, user.LastName, role, user.PhoneNumber, user.Adresa, user.TwoFactorEnabled));
 
     private string HashRefreshToken(string rawToken)
     {

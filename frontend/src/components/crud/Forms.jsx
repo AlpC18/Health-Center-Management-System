@@ -38,6 +38,8 @@ export function KlientForm({ initial, onSave, loading, onCancel }) {
     dataLindjes: '',
     gjinia: '',
     kushtetShendetesore: '',
+    loyaltyTier: 'Bronze',
+    discountPercent: 0,
     ...safeInitial,
   })
 
@@ -53,6 +55,8 @@ export function KlientForm({ initial, onSave, loading, onCancel }) {
       dataLindjes: f.dataLindjes || null,
       gjinia: f.gjinia || null,
       kushtetShendetesore: f.kushtetShendetesore?.trim() || null,
+      loyaltyTier: f.loyaltyTier || 'Bronze',
+      discountPercent: Number(f.discountPercent || 0),
       _newFoto: f._newFoto,
     }
     onSave(payload)
@@ -90,6 +94,19 @@ export function KlientForm({ initial, onSave, loading, onCancel }) {
       <Field label="Kushtet Shëndetësore">
         <textarea className="input" rows={2} value={emptyStr(f.kushtetShendetesore)} onChange={set('kushtetShendetesore')} />
       </Field>
+      <div className="grid grid-cols-2 gap-4">
+        <Field label="Loyalty Tier">
+          <select className="input" value={emptyStr(f.loyaltyTier)} onChange={set('loyaltyTier')}>
+            <option value="Bronze">Bronze</option>
+            <option value="Silver">Silver</option>
+            <option value="Gold">Gold</option>
+            <option value="Platinum">Platinum</option>
+          </select>
+        </Field>
+        <Field label="Zbritja (%)">
+          <input className="input" type="number" min="0" max="100" step="0.01" value={emptyStr(f.discountPercent)} onChange={set('discountPercent')} />
+        </Field>
+      </div>
 
       <Field label="Foto e Klientit">
         <div className="flex items-center gap-4 mt-1">
@@ -187,6 +204,8 @@ export function TerapistForm({ initial, onSave, loading, onCancel }) {
     email: '',
     telefoni: '',
     aktiv: true,
+    userId: '',
+    lokacioniId: '',
     ...initial,
   })
 
@@ -194,7 +213,7 @@ export function TerapistForm({ initial, onSave, loading, onCancel }) {
 
   const submit = (e) => {
     e.preventDefault()
-    onSave(f)
+    onSave({ ...f, lokacioniId: f.lokacioniId ? Number(f.lokacioniId) : null, userId: f.userId || null })
   }
 
   return (
@@ -227,6 +246,14 @@ export function TerapistForm({ initial, onSave, loading, onCancel }) {
       <Field label="Telefoni">
         <input className="input" value={emptyStr(f.telefoni)} onChange={set('telefoni')} />
       </Field>
+      <div className="grid grid-cols-2 gap-4">
+        <Field label="UserId">
+          <input className="input" value={emptyStr(f.userId)} onChange={set('userId')} />
+        </Field>
+        <Field label="LokacioniId">
+          <input className="input" type="number" min="1" value={emptyStr(f.lokacioniId)} onChange={set('lokacioniId')} />
+        </Field>
+      </div>
       <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
         <input
           type="checkbox"
@@ -252,6 +279,7 @@ export function TerminForm({ initial, onSave, loading, onCancel, klientet = [], 
     oraMbarimit: '',
     statusi: 'Planifikuar',
     shenimet: '',
+    lokacioniId: '',
     ...initial,
   })
 
@@ -259,7 +287,7 @@ export function TerminForm({ initial, onSave, loading, onCancel, klientet = [], 
 
   const submit = (e) => {
     e.preventDefault()
-    onSave(f)
+    onSave({ ...f, lokacioniId: f.lokacioniId ? Number(f.lokacioniId) : null })
   }
 
   return (
@@ -309,9 +337,13 @@ export function TerminForm({ initial, onSave, loading, onCancel, klientet = [], 
         <select className="input" value={emptyStr(f.statusi)} onChange={set('statusi')}>
           <option value="Planifikuar">Planifikuar</option>
           <option value="Konfirmuar">Konfirmuar</option>
+          <option value="NdryshimPropozuar">Ndryshim i propozuar</option>
           <option value="Anuluar">Anuluar</option>
           <option value="Perfunduar">Perfunduar</option>
         </select>
+      </Field>
+      <Field label="LokacioniId">
+        <input className="input" type="number" min="1" value={emptyStr(f.lokacioniId)} onChange={set('lokacioniId')} />
       </Field>
       <Field label="Shënime">
         <textarea className="input" rows={3} value={emptyStr(f.shenimet)} onChange={set('shenimet')} />

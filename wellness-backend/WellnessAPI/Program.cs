@@ -1,4 +1,5 @@
 ﻿using System.Text;
+using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -54,6 +55,19 @@ builder.Services.AddAuthentication(o => {
     o.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
 })
 .AddJwtBearer(o => {
+    o.Events = new JwtBearerEvents
+    {
+        OnMessageReceived = context =>
+        {
+            var accessToken = context.Request.Query["access_token"];
+            var path = context.HttpContext.Request.Path;
+            if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/notificationHub"))
+            {
+                context.Token = accessToken;
+            }
+            return Task.CompletedTask;
+        }
+    };
     o.TokenValidationParameters = new TokenValidationParameters
     {
         ValidateIssuer = true,
@@ -82,6 +96,12 @@ builder.Services.AddScoped<TokenService>();
 builder.Services.AddScoped<AuditService>();
 builder.Services.AddScoped<FileUploadService>();
 builder.Services.AddScoped<EmailService>();
+builder.Services.AddScoped<TemplateService>();
+builder.Services.AddScoped<PhiProtectionService>();
+builder.Services.AddScoped<TotpService>();
+builder.Services.AddScoped<NotificationService>();
+builder.Services.AddHttpClient<SmsService>();
+builder.Services.AddHttpClient<StripeCheckoutService>();
 builder.Services.AddHostedService<AppointmentReminderService>();
 builder.Services.AddSignalR();
 builder.Services.AddValidatorsFromAssemblyContaining<KlientValidators.Create>();
@@ -121,7 +141,8 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 
 var app = builder.Build();
 

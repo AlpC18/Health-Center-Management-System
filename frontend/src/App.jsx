@@ -42,6 +42,12 @@ const PortalProduktet = lazy(() => import('./pages/portal/PortalProduktet'))
 const PortalShitjet = lazy(() => import('./pages/portal/PortalShitjet'))
 const PortalVlereisimet = lazy(() => import('./pages/portal/PortalVlereisimet'))
 const PortalProfili = lazy(() => import('./pages/portal/PortalProfili'))
+const NotificationsInboxPage = lazy(() => import('./pages/Phase3Pages').then((m) => ({ default: m.NotificationsInboxPage })))
+const TwoFactorSetupPage = lazy(() => import('./pages/Phase3Pages').then((m) => ({ default: m.TwoFactorSetupPage })))
+const ConsentPage = lazy(() => import('./pages/Phase3Pages').then((m) => ({ default: m.ConsentPage })))
+const PrivacySelfServicePage = lazy(() => import('./pages/Phase3Pages').then((m) => ({ default: m.PrivacySelfServicePage })))
+const TemplatesAdminPage = lazy(() => import('./pages/Phase3Pages').then((m) => ({ default: m.TemplatesAdminPage })))
+const LocationsAdminPage = lazy(() => import('./pages/Phase3Pages').then((m) => ({ default: m.LocationsAdminPage })))
 
 function PageFallback() {
   return (
@@ -73,6 +79,13 @@ function AdminRoute() {
   if (!accessToken) return <Navigate to="/login" replace />
   if (user?.role !== 'Admin') return <Navigate to="/dashboard" replace />
   return <Outlet />
+}
+
+function TherapistRoute({ children }) {
+  const { accessToken, user } = useAuthStore()
+  if (!accessToken) return <Navigate to="/login" replace />
+  if (user?.role !== 'Therapist' && user?.role !== 'Admin') return <Navigate to="/dashboard" replace />
+  return children
 }
 
 function GuestRoute() {
@@ -126,7 +139,7 @@ export default function App() {
         <Route element={<ProtectedRoute />}>
           <Route element={<Layout />}>
             <Route path="/dashboard" element={<DashboardPage />} />
-            <Route path="/terapist-portal" element={<TherapistPortalPage />} />
+            <Route path="/terapist-portal" element={<TherapistRoute><TherapistPortalPage /></TherapistRoute>} />
             <Route path="/klientet" element={<KlientetPage />} />
             <Route path="/klientet/:id" element={<KlientProfilePage />} />
             <Route path="/sherbimet" element={<SherbiimetPage />} />
@@ -144,8 +157,12 @@ export default function App() {
             <Route path="/lajmerimet" element={<LajmerimetPage />} />
             <Route path="/zbritjet" element={<ZbritjetPage />} />
             <Route path="/pushimet" element={<PushimetPage />} />
+            <Route path="/notifications" element={<NotificationsInboxPage />} />
+            <Route path="/security/2fa" element={<TwoFactorSetupPage />} />
             <Route element={<AdminRoute />}>
               <Route path="/audit-logs" element={<AuditLogsPage />} />
+              <Route path="/templates" element={<TemplatesAdminPage />} />
+              <Route path="/locations" element={<LocationsAdminPage />} />
             </Route>
             <Route path="/calendar" element={<CalendarPage />} />
             <Route path="/advanced" element={<AdvancedFeaturesPage />} />
@@ -164,6 +181,10 @@ export default function App() {
         <Route path="/portal/shitjet" element={<KlientRoute><PortalShitjet /></KlientRoute>} />
         <Route path="/portal/vlereisimet" element={<KlientRoute><PortalVlereisimet /></KlientRoute>} />
         <Route path="/portal/profili" element={<KlientRoute><PortalProfili /></KlientRoute>} />
+        <Route path="/portal/notifications" element={<KlientRoute><NotificationsInboxPage /></KlientRoute>} />
+        <Route path="/portal/consent" element={<KlientRoute><ConsentPage /></KlientRoute>} />
+        <Route path="/portal/privacy" element={<KlientRoute><PrivacySelfServicePage /></KlientRoute>} />
+        <Route path="/portal/2fa" element={<KlientRoute><TwoFactorSetupPage /></KlientRoute>} />
 
         {/* Fallback */}
         <Route path="/" element={<Navigate to="/login" replace />} />

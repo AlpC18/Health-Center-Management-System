@@ -36,7 +36,7 @@ public class KlientetController : ControllerBase
         [FromQuery] int page = 1,
         [FromQuery] int limit = 10)
     {
-        var q = _db.Klientet.AsNoTracking().AsQueryable();
+        var q = _db.Klientet.AsNoTracking().Where(k => !k.IsDeleted).AsQueryable();
         if (!string.IsNullOrEmpty(search))
         {
             var s = search.ToLower();
@@ -73,6 +73,8 @@ public class KlientetController : ControllerBase
             Emri = dto.Emri, Mbiemri = dto.Mbiemri, Email = dto.Email,
             Telefoni = dto.Telefoni, DataLindjes = dto.DataLindjes,
             Gjinia = dto.Gjinia, KushtetShendetesore = dto.KushtetShendetesore,
+            LoyaltyTier = dto.LoyaltyTier,
+            DiscountPercent = dto.DiscountPercent,
             DataRegjistrimit = DateTime.UtcNow
         };
         _db.Klientet.Add(k);
@@ -107,6 +109,8 @@ public class KlientetController : ControllerBase
         k.Emri = dto.Emri; k.Mbiemri = dto.Mbiemri; k.Email = dto.Email;
         k.Telefoni = dto.Telefoni; k.DataLindjes = dto.DataLindjes;
         k.Gjinia = dto.Gjinia; k.KushtetShendetesore = dto.KushtetShendetesore;
+        k.LoyaltyTier = dto.LoyaltyTier;
+        k.DiscountPercent = dto.DiscountPercent;
         await _db.SaveChangesAsync();
         await _audit.LogAsync("UPDATE", "Klient", id.ToString(), old, dto);
         return Ok(ToDto(k));
@@ -146,6 +150,6 @@ public class KlientetController : ControllerBase
 
     private static KlientResponseDto ToDto(Klient k) => new(
         k.KlientId, k.Emri, k.Mbiemri, k.Email, k.Telefoni,
-        k.DataLindjes, k.Gjinia, k.KushtetShendetesore, k.FotoPath, k.DataRegjistrimit);
+        k.DataLindjes, k.Gjinia, k.KushtetShendetesore, k.FotoPath, k.DataRegjistrimit,
+        k.LoyaltyTier, k.DiscountPercent);
 }
-

@@ -127,8 +127,9 @@ export function LoginPage() {
   const navigate = useNavigate()
   const { setAuth } = useAuthStore()
   const { lang } = useLangStore()
-  const [form, setForm] = useState({ email: '', password: '' })
+  const [form, setForm] = useState({ email: '', password: '', twoFactorCode: '' })
   const [loginType, setLoginType] = useState('Klient')
+  const [requiresTwoFactor, setRequiresTwoFactor] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [rememberMe, setRememberMe] = useState(true)   // default-on for course-1 demo convenience
   const [capsLockOn, setCapsLockOn] = useState(false)
@@ -143,8 +144,9 @@ export function LoginPage() {
   }
 
   const fillDemo = (acc) => {
-    setForm({ email: acc.email, password: acc.password })
+    setForm({ email: acc.email, password: acc.password, twoFactorCode: '' })
     setLoginType(acc.tab)
+    setRequiresTwoFactor(false)
     setShowDemo(false)
   }
 
@@ -158,7 +160,16 @@ export function LoginPage() {
     try {
       // rememberMe is sent to the API as a hint; the backend can use it later to
       // extend the refresh-token lifetime. Today it's a no-op on the server.
-      const res = await authApi.login({ ...form, rememberMe })
+      const payload = { email: form.email, password: form.password, rememberMe }
+      if (requiresTwoFactor && form.twoFactorCode.trim()) {
+        payload.twoFactorCode = form.twoFactorCode.trim()
+      }
+      const res = await authApi.login(payload)
+      if (res?.data?.requiresTwoFactor) {
+        setRequiresTwoFactor(true)
+        toast('Shkruani kodin 2FA nga aplikacioni autentikues.')
+        return
+      }
       const role = res?.data?.user?.role
 
       // Admin credentials override the selected tab and always go to the admin panel.
@@ -174,7 +185,7 @@ export function LoginPage() {
       }
 
       setAuth(res.data)
-      navigate(role === 'Klient' ? '/portal/dashboard' : '/dashboard')
+      navigate(role === 'Klient' ? '/portal/dashboard' : role === 'Therapist' ? '/terapist-portal' : '/dashboard')
     } catch {
       toast.error(t(lang, 'loginError'))
     } finally {
@@ -204,6 +215,21 @@ export function LoginPage() {
             Doktor
           </button>
         </div>
+
+        {requiresTwoFactor && (
+          <div>
+            <label className="label">Kodi 2FA</label>
+            <input
+              type="text"
+              inputMode="numeric"
+              className="input"
+              placeholder="123456"
+              value={form.twoFactorCode}
+              onChange={(e) => setForm((p) => ({ ...p, twoFactorCode: e.target.value }))}
+              autoComplete="one-time-code"
+            />
+          </div>
+        )}
 
         <div>
           <label className="label">{t(lang, 'email')}</label>
@@ -537,6 +563,7 @@ export function RegisterPage() {
     specializimi: '',
     licenca: '',
     telefoni: '',
+    acceptedConsent: false,
   })
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
@@ -572,6 +599,10 @@ export function RegisterPage() {
       toast.error('Specializimi eshte i detyrueshem per doktor.')
       return
     }
+    if (!form.acceptedConsent) {
+      toast.error('Duhet te pranoni kushtet dhe politiken e privatesise.')
+      return
+    }
     setLoading(true)
     try {
       // confirmPassword is client-only — strip it before sending.
@@ -579,7 +610,7 @@ export function RegisterPage() {
       const res = await authApi.register(payload)
       setAuth(res.data)
       const role = res?.data?.user?.role
-      navigate(role === 'Klient' ? '/portal/dashboard' : '/dashboard')
+      navigate(role === 'Klient' ? '/portal/dashboard' : role === 'Therapist' ? '/terapist-portal' : '/dashboard')
     } catch (err) {
       if (err.response?.data?.message === 'EXISTING_ACCOUNT') {
         toast.error(err.response.data.text || 'Kjo llogari ekziston.')
@@ -804,6 +835,18 @@ export function RegisterPage() {
             </div>
           </div>
         )}
+
+        <label className="flex items-start gap-2 text-sm text-health-secondary cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={form.acceptedConsent}
+            onChange={(e) => setForm((p) => ({ ...p, acceptedConsent: e.target.checked, consentVersion: 'v1' }))}
+            className="mt-1 w-4 h-4 rounded accent-health-brand"
+          />
+          <span>
+            Pranoj kushtet, politiken e privatesise dhe regjistrimin e consent-it tim.
+          </span>
+        </label>
 
         <button type="submit" className="btn-primary w-full justify-center mt-2" disabled={loading}>
           {loading ? <Spinner size="sm" /> : null}

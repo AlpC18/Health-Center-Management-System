@@ -59,8 +59,9 @@ public class KlientShenimeController : ControllerBase
     private readonly ApplicationDbContext _db;
     private readonly AuditService _audit;
     private readonly UserManager<ApplicationUser> _users;
-    public KlientShenimeController(ApplicationDbContext db, AuditService audit, UserManager<ApplicationUser> users)
-    { _db = db; _audit = audit; _users = users; }
+    private readonly PhiProtectionService _phi;
+    public KlientShenimeController(ApplicationDbContext db, AuditService audit, UserManager<ApplicationUser> users, PhiProtectionService phi)
+    { _db = db; _audit = audit; _users = users; _phi = phi; }
 
     /// <summary>List notes. Admin sees all. Therapist sees their own. Klient sees only non-private notes about themselves.</summary>
     [HttpGet]
@@ -89,14 +90,27 @@ public class KlientShenimeController : ControllerBase
             .Skip((page - 1) * limit).Take(limit)
             .Join(_db.Klientet.AsNoTracking(), s => s.KlientId, k => k.KlientId, (s, k) => new { s, k })
             .GroupJoin(_db.Terapistet.AsNoTracking(), x => x.s.TerapistId, t => (int?)t.TerapistId, (x, ts) => new { x.s, x.k, ts })
-            .SelectMany(x => x.ts.DefaultIfEmpty(), (x, t) => new KlientShenimResponseDto(
-                x.s.ShenimId, x.s.KlientId, x.k.Emri + " " + x.k.Mbiemri,
-                x.s.TerminId, x.s.TerapistId,
-                t != null ? t.Emri + " " + t.Mbiemri : null,
-                x.s.Tipi, x.s.Permbajtja, x.s.Privat, x.s.DataKrijimit))
+            .SelectMany(x => x.ts.DefaultIfEmpty(), (x, t) => new
+            {
+                x.s.ShenimId,
+                x.s.KlientId,
+                KlientEmri = x.k.Emri + " " + x.k.Mbiemri,
+                x.s.TerminId,
+                x.s.TerapistId,
+                TerapistEmri = t != null ? t.Emri + " " + t.Mbiemri : null,
+                x.s.Tipi,
+                x.s.Permbajtja,
+                x.s.Privat,
+                x.s.DataKrijimit
+            })
             .ToListAsync();
 
-        return Ok(new { data = rows, total, page, limit });
+        var data = rows.Select(x => new KlientShenimResponseDto(
+            x.ShenimId, x.KlientId, x.KlientEmri,
+            x.TerminId, x.TerapistId, x.TerapistEmri,
+            x.Tipi, _phi.Unprotect(x.Permbajtja), x.Privat, x.DataKrijimit)).ToList();
+
+        return Ok(new { data, total, page, limit });
     }
 
     [HttpGet("{id}")]
@@ -115,6 +129,7 @@ public class KlientShenimeController : ControllerBase
             var tid = await User.CurrentTerapistIdAsync(_users);
             if (note.TerapistId != tid) return Forbid();
         }
+        note.Permbajtja = _phi.Unprotect(note.Permbajtja);
         return Ok(note);
     }
 
@@ -131,7 +146,7 @@ public class KlientShenimeController : ControllerBase
             TerminId = dto.TerminId,
             TerapistId = dto.TerapistId ?? await User.CurrentTerapistIdAsync(_users),
             Tipi = dto.Tipi,
-            Permbajtja = dto.Permbajtja,
+            Permbajtja = _phi.Protect(dto.Permbajtja),
             Privat = dto.Privat,
             DataKrijimit = DateTime.UtcNow,
         };
@@ -154,7 +169,7 @@ public class KlientShenimeController : ControllerBase
             if (note.TerapistId != tid) return Forbid();
         }
         note.Tipi = dto.Tipi;
-        note.Permbajtja = dto.Permbajtja;
+        note.Permbajtja = _phi.Protect(dto.Permbajtja);
         note.Privat = dto.Privat;
         await _db.SaveChangesAsync();
         await _audit.LogAsync("UPDATE", "KlientShenim", id.ToString(), null, dto);
@@ -440,10 +455,10 @@ public class TherapistPortalController : ControllerBase
         var t = await _db.Terminet.FindAsync(terminId);
         if (t is null) return NotFound();
         if (t.TerapistId != tid && !User.IsInRole("Admin")) return Forbid();
-        if (t.Statusi != "Konfirmuar")
+        if (t.Statusi != AppointmentStatus.Konfirmuar)
             return BadRequest(new { message = $"Termini duhet të jetë 'Konfirmuar' për t'u përfunduar (aktualisht: {t.Statusi})." });
 
-        t.Statusi = "Perfunduar";
+        t.Statusi = AppointmentStatus.Perfunduar;
         await _db.SaveChangesAsync();
         await _audit.LogAsync("COMPLETE", "Termin", terminId.ToString(), null, new { newStatus = "Perfunduar" });
 

@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
@@ -6,6 +7,7 @@ using WellnessAPI.Data;
 using WellnessAPI.DTOs;
 using WellnessAPI.Hubs;
 using WellnessAPI.Models.Domain;
+using WellnessAPI.Models.Identity;
 using WellnessAPI.Services;
 
 namespace WellnessAPI.Controllers;
@@ -103,21 +105,21 @@ public class TerapistetController : ControllerBase
     [HttpGet]
     public async Task<ActionResult> GetAll([FromQuery] string? search, [FromQuery] string? specializimi, [FromQuery] int page = 1, [FromQuery] int limit = 10)
     {
-        var q = _db.Terapistet.AsNoTracking().AsQueryable();
+        var q = _db.Terapistet.Include(t => t.Lokacioni).AsNoTracking().AsQueryable();
         if (!string.IsNullOrEmpty(search)) q = q.Where(t => t.Emri.Contains(search!) || t.Mbiemri.Contains(search!) || t.Email.Contains(search!));
         if (!string.IsNullOrEmpty(specializimi)) q = q.Where(t => t.Specializimi != null && t.Specializimi.Contains(specializimi));
         var total = await q.CountAsync();
         var data = await q.OrderBy(t => t.Mbiemri).Skip((page - 1) * limit).Take(limit)
-            .Select(t => new TerapistResponseDto(t.TerapistId, t.Emri, t.Mbiemri, t.Specializimi, t.Licenca, t.Email, t.Telefoni, t.Aktiv)).ToListAsync();
+            .Select(t => new TerapistResponseDto(t.TerapistId, t.Emri, t.Mbiemri, t.Specializimi, t.Licenca, t.Email, t.Telefoni, t.Aktiv, t.UserId, t.LokacioniId, t.Lokacioni != null ? t.Lokacioni.Emri : null)).ToListAsync();
         return Ok(new { data, total, page, limit });
     }
 
     [HttpGet("{id}")]
     public async Task<ActionResult> GetById(int id)
     {
-        var t = await _db.Terapistet.FindAsync(id);
+        var t = await _db.Terapistet.Include(x => x.Lokacioni).FirstOrDefaultAsync(x => x.TerapistId == id);
         if (t == null) return NotFound();
-        return Ok(new TerapistResponseDto(t.TerapistId, t.Emri, t.Mbiemri, t.Specializimi, t.Licenca, t.Email, t.Telefoni, t.Aktiv));
+        return Ok(new TerapistResponseDto(t.TerapistId, t.Emri, t.Mbiemri, t.Specializimi, t.Licenca, t.Email, t.Telefoni, t.Aktiv, t.UserId, t.LokacioniId, t.Lokacioni?.Emri));
     }
 
     [HttpPost]
@@ -126,7 +128,7 @@ public class TerapistetController : ControllerBase
         if (await _db.Terapistet.AnyAsync(t => t.Email == dto.Email))
             return BadRequest(new { success = false, message = "Email tashmë ekziston." });
 
-        var t = new Terapist { Emri = dto.Emri, Mbiemri = dto.Mbiemri, Specializimi = dto.Specializimi, Licenca = dto.Licenca, Email = dto.Email, Telefoni = dto.Telefoni, Aktiv = dto.Aktiv };
+        var t = new Terapist { Emri = dto.Emri, Mbiemri = dto.Mbiemri, Specializimi = dto.Specializimi, Licenca = dto.Licenca, Email = dto.Email, Telefoni = dto.Telefoni, Aktiv = dto.Aktiv, UserId = dto.UserId, LokacioniId = dto.LokacioniId };
         _db.Terapistet.Add(t);
         await _db.SaveChangesAsync();
         await _audit.LogAsync("CREATE", "Terapist", t.TerapistId.ToString(), null, dto);
@@ -142,7 +144,7 @@ public class TerapistetController : ControllerBase
             return BadRequest(new { success = false, message = "Email tashmë përdoret." });
 
         var old = t;
-        t.Emri = dto.Emri; t.Mbiemri = dto.Mbiemri; t.Specializimi = dto.Specializimi; t.Licenca = dto.Licenca; t.Email = dto.Email; t.Telefoni = dto.Telefoni; t.Aktiv = dto.Aktiv;
+        t.Emri = dto.Emri; t.Mbiemri = dto.Mbiemri; t.Specializimi = dto.Specializimi; t.Licenca = dto.Licenca; t.Email = dto.Email; t.Telefoni = dto.Telefoni; t.Aktiv = dto.Aktiv; t.UserId = dto.UserId; t.LokacioniId = dto.LokacioniId;
         await _db.SaveChangesAsync();
         await _audit.LogAsync("UPDATE", "Terapist", id.ToString(), old, dto);
         return Ok(t);
@@ -171,17 +173,8 @@ public class TerminetController : ControllerBase
     private readonly IHubContext<NotificationHub> _hub;
     private readonly EmailService _email;
     private readonly ILogger<TerminetController> _logger;
-    public TerminetController(ApplicationDbContext db, AuditService audit, IHubContext<NotificationHub> hub, EmailService email, ILogger<TerminetController> logger) { _db = db; _audit = audit; _hub = hub; _email = email; _logger = logger; }
-
-    // Allowed appointment status transitions (state machine). Unknown current
-    // statuses are permissive so legacy data is never blocked.
-    private static readonly Dictionary<string, string[]> AllowedStatusTransitions = new()
-    {
-        ["Planifikuar"] = new[] { "Planifikuar", "Konfirmuar", "Anuluar" },
-        ["Konfirmuar"]  = new[] { "Konfirmuar", "Perfunduar", "Anuluar" },
-        ["Perfunduar"]  = new[] { "Perfunduar" },
-        ["Anuluar"]     = new[] { "Anuluar" },
-    };
+    private readonly NotificationService _notifications;
+    public TerminetController(ApplicationDbContext db, AuditService audit, IHubContext<NotificationHub> hub, EmailService email, ILogger<TerminetController> logger, NotificationService notifications) { _db = db; _audit = audit; _hub = hub; _email = email; _logger = logger; _notifications = notifications; }
 
     private async Task SendBookingEmailAsync(Termin t)
     {
@@ -212,26 +205,32 @@ public class TerminetController : ControllerBase
         [FromQuery] string? statusi,
         [FromQuery] int? klientId,
         [FromQuery] int? terapistId,
+        [FromQuery] int? lokacioniId,
         [FromQuery] int page = 1,
         [FromQuery] int limit = 10)
     {
-        var q = _db.Terminet.Include(t => t.Klienti).Include(t => t.Sherbimi).Include(t => t.Terapisti).AsNoTracking().AsQueryable();
+        var q = _db.Terminet.Include(t => t.Klienti).Include(t => t.Sherbimi).Include(t => t.Terapisti).Include(t => t.Lokacioni).AsNoTracking().AsQueryable();
         var statusFilter = status ?? statusi;
-        if (!string.IsNullOrEmpty(statusFilter)) q = q.Where(t => t.Statusi == statusFilter);
+        if (!string.IsNullOrEmpty(statusFilter))
+        {
+            var parsedStatus = AppointmentStatusWorkflow.ParseOrDefault(statusFilter);
+            q = q.Where(t => t.Statusi == parsedStatus);
+        }
         if (klientId.HasValue) q = q.Where(t => t.KlientId == klientId.Value);
         if (terapistId.HasValue) q = q.Where(t => t.TerapistId == terapistId.Value);
+        if (lokacioniId.HasValue) q = q.Where(t => t.LokacioniId == lokacioniId.Value);
         var total = await q.CountAsync();
         var data = await q.OrderByDescending(t => t.DataTerminit).Skip((page - 1) * limit).Take(limit)
-            .Select(t => new TerminResponseDto(t.TerminId, t.KlientId, t.Klienti.Emri + " " + t.Klienti.Mbiemri, t.SherbimId, t.Sherbimi.EmriSherbimit, t.TerapistId, t.Terapisti.Emri + " " + t.Terapisti.Mbiemri, t.DataTerminit, t.OraFillimit, t.OraMbarimit, t.Statusi, t.Shenimet)).ToListAsync();
+            .Select(t => new TerminResponseDto(t.TerminId, t.KlientId, t.Klienti.Emri + " " + t.Klienti.Mbiemri, t.SherbimId, t.Sherbimi.EmriSherbimit, t.TerapistId, t.Terapisti.Emri + " " + t.Terapisti.Mbiemri, t.DataTerminit, t.OraFillimit, t.OraMbarimit, t.Statusi.ToString(), t.Shenimet, t.LokacioniId, t.Lokacioni != null ? t.Lokacioni.Emri : null, t.ProposedStart, t.ProposedEnd, t.RescheduleNote)).ToListAsync();
         return Ok(new { data, total, page, limit });
     }
 
     [HttpGet("{id}")]
     public async Task<ActionResult> GetById(int id)
     {
-        var t = await _db.Terminet.Include(x => x.Klienti).Include(x => x.Sherbimi).Include(x => x.Terapisti).FirstOrDefaultAsync(x => x.TerminId == id);
+        var t = await _db.Terminet.Include(x => x.Klienti).Include(x => x.Sherbimi).Include(x => x.Terapisti).Include(x => x.Lokacioni).FirstOrDefaultAsync(x => x.TerminId == id);
         if (t == null) return NotFound();
-        return Ok(new TerminResponseDto(t.TerminId, t.KlientId, t.Klienti.Emri + " " + t.Klienti.Mbiemri, t.SherbimId, t.Sherbimi.EmriSherbimit, t.TerapistId, t.Terapisti.Emri + " " + t.Terapisti.Mbiemri, t.DataTerminit, t.OraFillimit, t.OraMbarimit, t.Statusi, t.Shenimet));
+        return Ok(new TerminResponseDto(t.TerminId, t.KlientId, t.Klienti.Emri + " " + t.Klienti.Mbiemri, t.SherbimId, t.Sherbimi.EmriSherbimit, t.TerapistId, t.Terapisti.Emri + " " + t.Terapisti.Mbiemri, t.DataTerminit, t.OraFillimit, t.OraMbarimit, t.Statusi.ToString(), t.Shenimet, t.LokacioniId, t.Lokacioni?.Emri, t.ProposedStart, t.ProposedEnd, t.RescheduleNote));
     }
 
     [HttpPost]
@@ -243,6 +242,7 @@ public class TerminetController : ControllerBase
         var dayEnd = dayStart.AddDays(1);
         var sameDay = await _db.Terminet
             .Where(x => x.TerapistId == dto.TerapistId
+                        && x.Statusi != AppointmentStatus.Anuluar
                         && x.DataTerminit >= dayStart
                         && x.DataTerminit < dayEnd)
             .Select(x => new { x.OraFillimit, x.OraMbarimit })
@@ -260,17 +260,27 @@ public class TerminetController : ControllerBase
                 && p.Statusi == "Aprovuar" && p.DataFillimit < dayEnd && p.DataMbarimit >= dayStart))
             return Conflict(new { message = "Terapisti është në pushim në këtë datë." });
 
-        var t = new Termin { KlientId = dto.KlientId, SherbimId = dto.SherbimId, TerapistId = dto.TerapistId, DataTerminit = dto.DataTerminit, OraFillimit = dto.OraFillimit, OraMbarimit = dto.OraMbarimit, Statusi = dto.Statusi ?? "Planifikuar", Shenimet = dto.Shenimet };
+        var t = new Termin { KlientId = dto.KlientId, SherbimId = dto.SherbimId, TerapistId = dto.TerapistId, DataTerminit = dto.DataTerminit, OraFillimit = dto.OraFillimit, OraMbarimit = dto.OraMbarimit, Statusi = AppointmentStatusWorkflow.ParseOrDefault(dto.Statusi), Shenimet = dto.Shenimet, LokacioniId = dto.LokacioniId };
         _db.Terminet.Add(t);
         await _db.SaveChangesAsync();
         await _audit.LogAsync("CREATE", "Termin", t.TerminId.ToString(), null, dto);
-        await _hub.Clients.All.SendAsync(NotificationEvents.NewAppointment, new {
+        var therapistUserId = await _db.Terapistet.AsNoTracking().Where(x => x.TerapistId == t.TerapistId).Select(x => x.UserId).FirstOrDefaultAsync();
+        var klientUserId = await _db.Users.AsNoTracking().Where(u => u.KlientId == t.KlientId.ToString()).Select(u => u.Id).FirstOrDefaultAsync();
+        var appointmentPayload = new {
             terminId = t.TerminId,
             klientId = t.KlientId,
             dataTerminit = t.DataTerminit,
-            statusi = t.Statusi,
+            statusi = t.Statusi.ToString(),
             message = "Termin i ri u shtua."
-        });
+        };
+        await _notifications.NotifyUsersAsync(
+            new[] { therapistUserId, klientUserId },
+            NotificationEvents.NewAppointment,
+            "Termin i ri",
+            "Termin i ri u shtua.",
+            "Appointment",
+            "/terminet",
+            appointmentPayload);
         await SendBookingEmailAsync(t);
         return CreatedAtAction(nameof(GetById), new { id = t.TerminId }, t);
     }
@@ -315,6 +325,7 @@ public class TerminetController : ControllerBase
             // Per-iteration conflict check (must re-read because we add as we go)
             var sameDay = await _db.Terminet
                 .Where(x => x.TerapistId == dto.TerapistId && x.DataTerminit >= dayStart && x.DataTerminit < dayEnd)
+                .Where(x => x.Statusi != AppointmentStatus.Anuluar)
                 .Select(x => new { x.OraFillimit, x.OraMbarimit })
                 .ToListAsync();
             var conflict = sameDay.Any(x =>
@@ -336,8 +347,9 @@ public class TerminetController : ControllerBase
                 DataTerminit = date,
                 OraFillimit = dto.OraFillimit,
                 OraMbarimit = dto.OraMbarimit,
-                Statusi = dto.Statusi,
+                Statusi = AppointmentStatusWorkflow.ParseOrDefault(dto.Statusi),
                 Shenimet = dto.Shenimet,
+                LokacioniId = await _db.Terapistet.AsNoTracking().Where(x => x.TerapistId == dto.TerapistId).Select(x => x.LokacioniId).FirstOrDefaultAsync(),
             };
             _db.Terminet.Add(t);
             await _db.SaveChangesAsync();
@@ -350,7 +362,8 @@ public class TerminetController : ControllerBase
 
         if (created > 0)
         {
-            await _hub.Clients.All.SendAsync(NotificationEvents.NewAppointment, new {
+            var therapistUserId = await _db.Terapistet.AsNoTracking().Where(x => x.TerapistId == dto.TerapistId).Select(x => x.UserId).FirstOrDefaultAsync();
+            await _notifications.NotifyUserAsync(therapistUserId, NotificationEvents.NewAppointment, "Termine te perseritura", $"U krijuan {created} termine te perseritura.", "Appointment", "/terapist-portal", new {
                 count = created,
                 klientId = dto.KlientId,
                 message = $"U krijuan {created} termine të përsëritura."
@@ -373,6 +386,7 @@ public class TerminetController : ControllerBase
         var sameDay = await _db.Terminet
             .Where(x => x.TerminId != id
                         && x.TerapistId == dto.TerapistId
+                        && x.Statusi != AppointmentStatus.Anuluar
                         && x.DataTerminit >= dayStart
                         && x.DataTerminit < dayEnd)
             .Select(x => new { x.OraFillimit, x.OraMbarimit })
@@ -391,18 +405,25 @@ public class TerminetController : ControllerBase
             return Conflict(new { message = "Terapisti është në pushim në këtë datë." });
 
         // Enforce the appointment status workflow.
-        if (AllowedStatusTransitions.TryGetValue(t.Statusi, out var allowedNext) && !allowedNext.Contains(dto.Statusi))
-            return BadRequest(new { message = $"Kalim i palejuar i statusit: {t.Statusi} -> {dto.Statusi}." });
+        var nextStatus = AppointmentStatusWorkflow.ParseOrDefault(dto.Statusi, t.Statusi);
+        try
+        {
+            AppointmentStatusWorkflow.EnsureTransition(t.Statusi, nextStatus);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
 
         var old = t;
-        var wasPerfunduar = t.Statusi == "Perfunduar";
-        t.KlientId = dto.KlientId; t.SherbimId = dto.SherbimId; t.TerapistId = dto.TerapistId; t.DataTerminit = dto.DataTerminit; t.OraFillimit = dto.OraFillimit; t.OraMbarimit = dto.OraMbarimit; t.Statusi = dto.Statusi; t.Shenimet = dto.Shenimet;
+        var wasPerfunduar = t.Statusi == AppointmentStatus.Perfunduar;
+        t.KlientId = dto.KlientId; t.SherbimId = dto.SherbimId; t.TerapistId = dto.TerapistId; t.DataTerminit = dto.DataTerminit; t.OraFillimit = dto.OraFillimit; t.OraMbarimit = dto.OraMbarimit; t.Statusi = nextStatus; t.Shenimet = dto.Shenimet; t.LokacioniId = dto.LokacioniId;
         await _db.SaveChangesAsync();
         await _audit.LogAsync("UPDATE", "Termin", id.ToString(), old, dto);
 
         // Award loyalty points when a termin first transitions to "Perfunduar".
         // Only awarded once per termin (no double-award if already Perfunduar).
-        if (!wasPerfunduar && dto.Statusi == "Perfunduar")
+        if (!wasPerfunduar && nextStatus == AppointmentStatus.Perfunduar)
         {
             // Skip if a ledger entry for this termin already exists (defence in depth).
             var alreadyAwarded = await _db.KlientPikat.AnyAsync(p => p.LidhjeId == id && p.Tipi == "Termin");
@@ -420,6 +441,63 @@ public class TerminetController : ControllerBase
             }
         }
         return Ok(t);
+    }
+
+    [HttpPost("{id:int}/reschedule-proposal")]
+    public async Task<ActionResult> ProposeReschedule(int id, RescheduleProposalDto dto)
+    {
+        if (dto.ProposedEnd <= dto.ProposedStart)
+            return BadRequest(new { message = "Ora e mbarimit duhet te jete pas ores se fillimit." });
+
+        var t = await _db.Terminet
+            .Include(x => x.Klienti)
+            .Include(x => x.Sherbimi)
+            .Include(x => x.Terapisti)
+            .FirstOrDefaultAsync(x => x.TerminId == id);
+        if (t is null) return NotFound();
+        if (t.Statusi is AppointmentStatus.Perfunduar or AppointmentStatus.Anuluar)
+            return BadRequest(new { message = "Termini i perfunduar ose i anuluar nuk mund te ndryshohet." });
+
+        var dayStart = dto.ProposedStart.Date;
+        var dayEnd = dayStart.AddDays(1);
+        var startTime = dto.ProposedStart.TimeOfDay;
+        var endTime = dto.ProposedEnd.TimeOfDay;
+        var sameDay = await _db.Terminet
+            .Where(x => x.TerminId != id
+                        && x.TerapistId == t.TerapistId
+                        && x.Statusi != AppointmentStatus.Anuluar
+                        && x.DataTerminit >= dayStart
+                        && x.DataTerminit < dayEnd)
+            .Select(x => new { x.OraFillimit, x.OraMbarimit })
+            .ToListAsync();
+        var conflict = sameDay.Any(x =>
+            (startTime >= x.OraFillimit && startTime < x.OraMbarimit) ||
+            (endTime > x.OraFillimit && endTime <= x.OraMbarimit) ||
+            (startTime <= x.OraFillimit && endTime >= x.OraMbarimit));
+        if (conflict) return Conflict(new { message = "Terapisti eshte i zene ne orarin e propozuar." });
+
+        var previousStatus = t.Statusi;
+        AppointmentStatusWorkflow.EnsureTransition(previousStatus, AppointmentStatus.NdryshimPropozuar);
+        t.ProposedStart = dto.ProposedStart;
+        t.ProposedEnd = dto.ProposedEnd;
+        t.RescheduleNote = dto.Note;
+        t.RescheduleProposedAt = DateTime.UtcNow;
+        t.RescheduleProposedByUserId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? User.FindFirst("sub")?.Value;
+        t.Statusi = AppointmentStatus.NdryshimPropozuar;
+        await _db.SaveChangesAsync();
+        await _audit.LogAsync("RESCHEDULE_PROPOSE", "Termin", id.ToString(), new { previousStatus }, dto);
+
+        var klientUserId = await _db.Users.AsNoTracking().Where(u => u.KlientId == t.KlientId.ToString()).Select(u => u.Id).FirstOrDefaultAsync();
+        await _notifications.NotifyUserAsync(
+            klientUserId,
+            NotificationEvents.RescheduleProposed,
+            "Propozim per ndryshim termini",
+            $"U propozua orar i ri per {t.Sherbimi.EmriSherbimit}: {dto.ProposedStart:dd/MM/yyyy HH:mm}.",
+            "Reschedule",
+            "/portal/terminet",
+            new { terminId = t.TerminId, proposedStart = t.ProposedStart, proposedEnd = t.ProposedEnd, note = t.RescheduleNote });
+
+        return Ok(new { success = true, statusi = t.Statusi.ToString(), t.ProposedStart, t.ProposedEnd, t.RescheduleNote });
     }
 
     [HttpDelete("{id}")]
@@ -514,7 +592,7 @@ public class AnetaresimetController : ControllerBase
         if (!string.IsNullOrEmpty(status)) q = q.Where(a => a.Statusi == status);
         var total = await q.CountAsync();
         var data = await q.OrderByDescending(a => a.DataFillimit).Skip((page - 1) * limit).Take(limit)
-            .Select(a => new AnetaresimResponseDto(a.AnetaresimId, a.KlientId, a.Klienti.Emri + " " + a.Klienti.Mbiemri, a.PaketId, a.Paketa.EmriPaketes, a.DataFillimit, a.DataMbarimit, a.Statusi, a.CmimiPaguar)).ToListAsync();
+            .Select(a => new AnetaresimResponseDto(a.AnetaresimId, a.KlientId, a.Klienti.Emri + " " + a.Klienti.Mbiemri, a.PaketId, a.Paketa.EmriPaketes, a.DataFillimit, a.DataMbarimit, a.Statusi, a.CmimiPaguar, a.DiscountPercent, a.PaymentStatus)).ToListAsync();
         return Ok(new { data, total, page, limit });
     }
 
@@ -523,13 +601,18 @@ public class AnetaresimetController : ControllerBase
     {
         var a = await _db.Anetaresimet.Include(x => x.Klienti).Include(x => x.Paketa).FirstOrDefaultAsync(x => x.AnetaresimId == id);
         if (a == null) return NotFound();
-        return Ok(new AnetaresimResponseDto(a.AnetaresimId, a.KlientId, a.Klienti.Emri + " " + a.Klienti.Mbiemri, a.PaketId, a.Paketa.EmriPaketes, a.DataFillimit, a.DataMbarimit, a.Statusi, a.CmimiPaguar));
+        return Ok(new AnetaresimResponseDto(a.AnetaresimId, a.KlientId, a.Klienti.Emri + " " + a.Klienti.Mbiemri, a.PaketId, a.Paketa.EmriPaketes, a.DataFillimit, a.DataMbarimit, a.Statusi, a.CmimiPaguar, a.DiscountPercent, a.PaymentStatus));
     }
 
     [HttpPost]
     public async Task<ActionResult> Create(AnetaresimCreateDto dto)
     {
-        var a = new Anetaresim { KlientId = dto.KlientId, PaketId = dto.PaketId, DataFillimit = dto.DataFillimit, DataMbarimit = dto.DataMbarimit, Statusi = dto.Statusi, CmimiPaguar = dto.CmimiPaguar };
+        var klient = await _db.Klientet.AsNoTracking().FirstOrDefaultAsync(k => k.KlientId == dto.KlientId);
+        var paketa = await _db.PaketaWellness.AsNoTracking().FirstOrDefaultAsync(p => p.PaketId == dto.PaketId);
+        var discount = klient?.DiscountPercent ?? 0;
+        var basePrice = paketa?.Cmimi ?? dto.CmimiPaguar;
+        var finalPrice = Math.Round(basePrice * (1 - discount / 100m), 2);
+        var a = new Anetaresim { KlientId = dto.KlientId, PaketId = dto.PaketId, DataFillimit = dto.DataFillimit, DataMbarimit = dto.DataMbarimit, Statusi = dto.Statusi, CmimiPaguar = finalPrice, DiscountPercent = discount, PaymentStatus = "Manual" };
         _db.Anetaresimet.Add(a);
         await _db.SaveChangesAsync();
         await _audit.LogAsync("CREATE", "Anetaresim", a.AnetaresimId.ToString(), null, dto);
@@ -542,7 +625,8 @@ public class AnetaresimetController : ControllerBase
         var a = await _db.Anetaresimet.FindAsync(id);
         if (a == null) return NotFound();
         var old = a;
-        a.KlientId = dto.KlientId; a.PaketId = dto.PaketId; a.DataFillimit = dto.DataFillimit; a.DataMbarimit = dto.DataMbarimit; a.Statusi = dto.Statusi; a.CmimiPaguar = dto.CmimiPaguar;
+        var klient = await _db.Klientet.AsNoTracking().FirstOrDefaultAsync(k => k.KlientId == dto.KlientId);
+        a.KlientId = dto.KlientId; a.PaketId = dto.PaketId; a.DataFillimit = dto.DataFillimit; a.DataMbarimit = dto.DataMbarimit; a.Statusi = dto.Statusi; a.CmimiPaguar = dto.CmimiPaguar; a.DiscountPercent = klient?.DiscountPercent ?? a.DiscountPercent;
         await _db.SaveChangesAsync();
         await _audit.LogAsync("UPDATE", "Anetaresim", id.ToString(), old, dto);
         return Ok(a);
@@ -695,7 +779,8 @@ public class ShitjetController : ControllerBase
     private readonly ApplicationDbContext _db;
     private readonly AuditService _audit;
     private readonly IHubContext<NotificationHub> _hub;
-    public ShitjetController(ApplicationDbContext db, AuditService audit, IHubContext<NotificationHub> hub) { _db = db; _audit = audit; _hub = hub; }
+    private readonly NotificationService _notifications;
+    public ShitjetController(ApplicationDbContext db, AuditService audit, IHubContext<NotificationHub> hub, NotificationService notifications) { _db = db; _audit = audit; _hub = hub; _notifications = notifications; }
 
     [HttpGet]
     public async Task<ActionResult> GetAll([FromQuery] int page = 1, [FromQuery] int limit = 10)
@@ -791,12 +876,16 @@ public class ShitjetController : ControllerBase
         // Notify if stock dropped to low threshold
         if (produkt.SasiaStok <= 10)
         {
-            await _hub.Clients.All.SendAsync(NotificationEvents.LowStock, new {
+            var payload = new {
                 produktId = produkt.ProduktId,
                 emriProduktit = produkt.EmriProduktit,
                 sasiaStok = produkt.SasiaStok,
                 message = $"Stok i ulët: {produkt.EmriProduktit} ({produkt.SasiaStok} mbetur)"
-            });
+            };
+            var adminIds = await _db.UserRoles
+                .Join(_db.Roles.Where(r => r.Name == "Admin"), ur => ur.RoleId, r => r.Id, (ur, r) => ur.UserId)
+                .ToListAsync();
+            await _notifications.NotifyUsersAsync(adminIds, NotificationEvents.LowStock, "Stok i ulet", payload.message, "Warning", "/produktet", payload);
         }
 
         // Project to DTO to avoid serializing the tracked entity graph (object-cycle safe).
@@ -836,7 +925,8 @@ public class VlereisimetController : ControllerBase
     private readonly ApplicationDbContext _db;
     private readonly AuditService _audit;
     private readonly IHubContext<NotificationHub> _hub;
-    public VlereisimetController(ApplicationDbContext db, AuditService audit, IHubContext<NotificationHub> hub) { _db = db; _audit = audit; _hub = hub; }
+    private readonly NotificationService _notifications;
+    public VlereisimetController(ApplicationDbContext db, AuditService audit, IHubContext<NotificationHub> hub, NotificationService notifications) { _db = db; _audit = audit; _hub = hub; _notifications = notifications; }
 
     [HttpGet]
     public async Task<ActionResult> GetAll([FromQuery] int page = 1, [FromQuery] int limit = 10)
@@ -863,12 +953,16 @@ public class VlereisimetController : ControllerBase
         _db.Vlereisimet.Add(v);
         await _db.SaveChangesAsync();
         await _audit.LogAsync("CREATE", "Vleresim", v.VleresimId.ToString(), null, dto);
-        await _hub.Clients.All.SendAsync(NotificationEvents.NewReview, new {
+        var payload = new {
             vleresimId = v.VleresimId,
             sherbimId = v.SherbimId,
             nota = v.Nota,
             message = $"Vlerësim i ri: {v.Nota}/5 yje"
-        });
+        };
+        var adminIds = await _db.UserRoles
+            .Join(_db.Roles.Where(r => r.Name == "Admin"), ur => ur.RoleId, r => r.Id, (ur, r) => ur.UserId)
+            .ToListAsync();
+        await _notifications.NotifyUsersAsync(adminIds, NotificationEvents.NewReview, "Vleresim i ri", payload.message, "Review", "/vlereisimet", payload);
         return CreatedAtAction(nameof(GetById), new { id = v.VleresimId }, v);
     }
 }

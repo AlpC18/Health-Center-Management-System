@@ -26,6 +26,7 @@ export function TerapistetPage() {
         },
         { key: 'specializimi', label: 'Specializimi' },
         { key: 'licenca', label: 'Licenca' },
+        { key: 'lokacioniEmri', label: 'Lokacioni', render: (item) => item.lokacioniEmri || item.lokacioniId || '-' },
         {
           key: 'aktiv',
           label: 'Statusi',

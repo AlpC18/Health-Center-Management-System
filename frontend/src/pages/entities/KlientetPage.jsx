@@ -80,6 +80,8 @@ export function KlientetPage() {
           },
           { key: 'email', label: 'Email' },
           { key: 'telefoni', label: 'Telefoni' },
+          { key: 'loyaltyTier', label: 'Tier' },
+          { key: 'discountPercent', label: 'Zbritja', render: (item) => `${item.discountPercent ?? 0}%` },
           {
             key: 'gjinia',
             label: 'Gjinia',

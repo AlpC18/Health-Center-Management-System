@@ -1,19 +1,34 @@
 import { useEffect, useState } from 'react'
 import { CreditCard, CheckCircle } from 'lucide-react'
+import toast from 'react-hot-toast'
 import { portalApi } from '../../api/portalApi'
+import { paymentsApi } from '../../api/api'
 import { PageLoader, StatusBadge } from '../../components/ui'
 
 export default function PortalAnetaresimi() {
   const [anetaresimet, setAnetaresimet] = useState([])
   const [paketat, setPaketat] = useState([])
   const [loading, setLoading] = useState(true)
+  const [buying, setBuying] = useState(null)
+  const [quotes, setQuotes] = useState({})
   const [now] = useState(() => Date.now())
 
   useEffect(() => {
     Promise.all([portalApi.getAnetaresimi(), portalApi.getPaketat()])
       .then(([a, p]) => {
         setAnetaresimet(a.data?.data || a.data || [])
-        setPaketat(p.data?.data || p.data || [])
+        const paketatData = p.data?.data || p.data || []
+        setPaketat(paketatData)
+        return Promise.all(
+          paketatData.map((paketa) =>
+            portalApi.quotePaketa(paketa.paketId)
+              .then((res) => [paketa.paketId, res.data])
+              .catch(() => [paketa.paketId, null])
+          )
+        )
+      })
+      .then((quotePairs) => {
+        if (quotePairs) setQuotes(Object.fromEntries(quotePairs.filter(([, q]) => q)))
       })
       .finally(() => setLoading(false))
   }, [])
@@ -22,6 +37,22 @@ export default function PortalAnetaresimi() {
 
   const aktiv = anetaresimet.find((a) => a.statusi === 'Aktiv')
   const fmtDate = (d) => new Date(d).toLocaleDateString('sq-AL')
+
+  const checkout = async (paketId) => {
+    setBuying(paketId)
+    try {
+      const res = await paymentsApi.createMembershipCheckout({ paketId })
+      if (res.data?.url) {
+        window.location.href = res.data.url
+      } else {
+        toast.error('Stripe nuk ktheu URL checkout.')
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Checkout deshtoi.')
+    } finally {
+      setBuying(null)
+    }
+  }
 
   return (
     <div>
@@ -80,8 +111,24 @@ export default function PortalAnetaresimi() {
             )}
             <div className="flex items-center justify-between">
               <span className="text-xs text-gray-500">{p.kohezgjatjaMuaj} muaj</span>
-              <span className="text-xl font-bold text-green-700">€{p.cmimi}</span>
+              <div className="text-right">
+                {quotes[p.paketId]?.discountPercent > 0 && (
+                  <p className="text-xs text-gray-400 line-through">€{p.cmimi}</p>
+                )}
+                <span className="text-xl font-bold text-green-700">€{quotes[p.paketId]?.finalPrice ?? p.cmimi}</span>
+              </div>
             </div>
+            {quotes[p.paketId]?.discountPercent > 0 && (
+              <p className="text-xs text-green-700 mt-2">{quotes[p.paketId].loyaltyTier}: -{quotes[p.paketId].discountPercent}%</p>
+            )}
+            <button
+              onClick={() => checkout(p.paketId)}
+              disabled={buying === p.paketId}
+              className="btn-primary w-full justify-center mt-4"
+            >
+              <CreditCard className="w-4 h-4" />
+              {buying === p.paketId ? 'Duke hapur...' : 'Bli me Stripe'}
+            </button>
           </div>
         ))}
       </div>

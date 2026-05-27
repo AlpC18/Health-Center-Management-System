@@ -219,6 +219,11 @@ export function TerminetPage() {
             label: 'Statusi',
             render: (item) => <StatusBadge status={item.statusi} />,
           },
+          {
+            key: 'lokacioniEmri',
+            label: 'Lokacioni',
+            render: (item) => item.lokacioniEmri || item.lokacioniId || '-',
+          },
         ]}
       />
 

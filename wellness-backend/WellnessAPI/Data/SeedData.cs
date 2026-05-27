@@ -24,12 +24,25 @@ public static class SeedData
 
         // 2. SYSTEM USERS (always ensure test logins exist)
         await EnsureUserWithRoleAsync(userManager, "admin@wellness.com", "Admin123!", "Admin", "Wellness", "Admin");
+        await EnsureTemplatesAsync(db);
+
+        if (!await db.Lokacionet.AnyAsync())
+        {
+            db.Lokacionet.Add(new Lokacioni
+            {
+                Emri = "Qendra Kryesore",
+                Adresa = "Prishtine",
+                Telefoni = "+383 44 000 111",
+                Aktiv = true
+            });
+            await db.SaveChangesAsync();
+        }
 
         if (db.Klientet.Any())
         {
             // Link therapist user to its Terapist row (if not already linked)
-            var ter = await db.Terapistet.AsNoTracking().OrderBy(t => t.TerapistId).FirstOrDefaultAsync();
-            await EnsureUserWithRoleAsync(
+            var ter = await db.Terapistet.OrderBy(t => t.TerapistId).FirstOrDefaultAsync();
+            var therapistUser = await EnsureUserWithRoleAsync(
                 userManager,
                 "therapist@wellness.com",
                 "Therapist123!",
@@ -37,6 +50,11 @@ public static class SeedData
                 ter?.Mbiemri ?? "Krasniqi",
                 "Therapist",
                 terapistId: ter?.TerapistId.ToString());
+            if (ter is not null && therapistUser is not null && string.IsNullOrWhiteSpace(ter.UserId))
+            {
+                ter.UserId = therapistUser.Id;
+                await db.SaveChangesAsync();
+            }
 
             var klient = await db.Klientet.AsNoTracking().OrderBy(k => k.KlientId).FirstOrDefaultAsync();
             await EnsureUserWithRoleAsync(
@@ -51,18 +69,21 @@ public static class SeedData
         }
 
         // 3. TERAPISTET
+        var lokacionet = await db.Lokacionet.ToListAsync();
+        var primaryLocation = lokacionet.OrderBy(l => l.LokacioniId).FirstOrDefault();
+
         var terapistet = new List<Terapist>
         {
-            new() { Emri="Arta", Mbiemri="Krasniqi", Specializimi="Masazh Terapeutik", Licenca="LIC-2023-001", Email="arta.k@wellness.com", Telefoni="+383 44 111 222", Aktiv=true },
-            new() { Emri="Blerim", Mbiemri="Hoxha", Specializimi="Yoga & Meditim", Licenca="LIC-2023-002", Email="blerim.h@wellness.com", Telefoni="+383 44 333 444", Aktiv=true },
-            new() { Emri="Drita", Mbiemri="Berisha", Specializimi="Fizioterapi", Licenca="LIC-2023-003", Email="drita.b@wellness.com", Telefoni="+383 44 555 666", Aktiv=true },
-            new() { Emri="Fitim", Mbiemri="Gashi", Specializimi="Nutricion", Licenca="LIC-2023-004", Email="fitim.g@wellness.com", Telefoni="+383 44 777 888", Aktiv=true },
-            new() { Emri="Lirie", Mbiemri="Morina", Specializimi="Spa & Beauty", Licenca="LIC-2023-005", Email="lirie.m@wellness.com", Telefoni="+383 44 999 000", Aktiv=true },
-            new() { Emri="Rron", Mbiemri="Rexha", Specializimi="Akupunkturë", Licenca="LIC-2024-006", Email="rron.r@wellness.com", Telefoni="+383 45 111 001", Aktiv=true },
-            new() { Emri="Valentina", Mbiemri="Gjonaj", Specializimi="Masazh Sportiv", Licenca="LIC-2024-007", Email="valentina.g@wellness.com", Telefoni="+383 45 111 002", Aktiv=true },
-            new() { Emri="Luan", Mbiemri="Beka", Specializimi="Terapia Manuale", Licenca="LIC-2024-008", Email="luan.b@wellness.com", Telefoni="+383 45 111 003", Aktiv=true },
-            new() { Emri="Ardita", Mbiemri="Selimi", Specializimi="Reiki & Energji", Licenca="LIC-2024-009", Email="ardita.s@wellness.com", Telefoni="+383 45 111 004", Aktiv=true },
-            new() { Emri="Kujtim", Mbiemri="Peci", Specializimi="Fizioterapi Pediatrike", Licenca="LIC-2024-010", Email="kujtim.p@wellness.com", Telefoni="+383 45 111 005", Aktiv=true },
+            new() { Emri="Arta", Mbiemri="Krasniqi", Specializimi="Masazh Terapeutik", Licenca="LIC-2023-001", Email="arta.k@wellness.com", Telefoni="+383 44 111 222", Aktiv=true, Lokacioni = primaryLocation },
+            new() { Emri="Blerim", Mbiemri="Hoxha", Specializimi="Yoga & Meditim", Licenca="LIC-2023-002", Email="blerim.h@wellness.com", Telefoni="+383 44 333 444", Aktiv=true, Lokacioni = primaryLocation },
+            new() { Emri="Drita", Mbiemri="Berisha", Specializimi="Fizioterapi", Licenca="LIC-2023-003", Email="drita.b@wellness.com", Telefoni="+383 44 555 666", Aktiv=true, Lokacioni = primaryLocation },
+            new() { Emri="Fitim", Mbiemri="Gashi", Specializimi="Nutricion", Licenca="LIC-2023-004", Email="fitim.g@wellness.com", Telefoni="+383 44 777 888", Aktiv=true, Lokacioni = primaryLocation },
+            new() { Emri="Lirie", Mbiemri="Morina", Specializimi="Spa & Beauty", Licenca="LIC-2023-005", Email="lirie.m@wellness.com", Telefoni="+383 44 999 000", Aktiv=true, Lokacioni = primaryLocation },
+            new() { Emri="Rron", Mbiemri="Rexha", Specializimi="Akupunkturë", Licenca="LIC-2024-006", Email="rron.r@wellness.com", Telefoni="+383 45 111 001", Aktiv=true, Lokacioni = primaryLocation },
+            new() { Emri="Valentina", Mbiemri="Gjonaj", Specializimi="Masazh Sportiv", Licenca="LIC-2024-007", Email="valentina.g@wellness.com", Telefoni="+383 45 111 002", Aktiv=true, Lokacioni = primaryLocation },
+            new() { Emri="Luan", Mbiemri="Beka", Specializimi="Terapia Manuale", Licenca="LIC-2024-008", Email="luan.b@wellness.com", Telefoni="+383 45 111 003", Aktiv=true, Lokacioni = primaryLocation },
+            new() { Emri="Ardita", Mbiemri="Selimi", Specializimi="Reiki & Energji", Licenca="LIC-2024-009", Email="ardita.s@wellness.com", Telefoni="+383 45 111 004", Aktiv=true, Lokacioni = primaryLocation },
+            new() { Emri="Kujtim", Mbiemri="Peci", Specializimi="Fizioterapi Pediatrike", Licenca="LIC-2024-010", Email="kujtim.p@wellness.com", Telefoni="+383 45 111 005", Aktiv=true, Lokacioni = primaryLocation },
         };
         db.Terapistet.AddRange(terapistet);
 
@@ -88,8 +109,8 @@ public static class SeedData
         // 5. KLIENTET
         var klientet = new List<Klient>
         {
-            new() { Emri="Alban", Mbiemri="Mustafa", Email="alban.m@email.com", Telefoni="+383 45 100 001", DataLindjes=new DateTime(1990,3,15), Gjinia="M", DataRegjistrimit=DateTime.UtcNow.AddMonths(-6) },
-            new() { Emri="Besa", Mbiemri="Ahmeti", Email="besa.a@email.com", Telefoni="+383 45 100 002", DataLindjes=new DateTime(1985,7,22), Gjinia="F", DataRegjistrimit=DateTime.UtcNow.AddMonths(-5) },
+            new() { Emri="Alban", Mbiemri="Mustafa", Email="alban.m@email.com", Telefoni="+383 45 100 001", DataLindjes=new DateTime(1990,3,15), Gjinia="M", DataRegjistrimit=DateTime.UtcNow.AddMonths(-6), LoyaltyTier="Gold", DiscountPercent=15 },
+            new() { Emri="Besa", Mbiemri="Ahmeti", Email="besa.a@email.com", Telefoni="+383 45 100 002", DataLindjes=new DateTime(1985,7,22), Gjinia="F", DataRegjistrimit=DateTime.UtcNow.AddMonths(-5), LoyaltyTier="Silver", DiscountPercent=10 },
             new() { Emri="Cunatë", Mbiemri="Shala", Email="cunate.sh@email.com", Telefoni="+383 45 100 003", DataLindjes=new DateTime(1992,11,8), Gjinia="F", DataRegjistrimit=DateTime.UtcNow.AddMonths(-5) },
             new() { Emri="Donat", Mbiemri="Gashi", Email="donat.g@email.com", Telefoni="+383 45 100 004", DataLindjes=new DateTime(1988,1,30), Gjinia="M", DataRegjistrimit=DateTime.UtcNow.AddMonths(-4) },
             new() { Emri="Elona", Mbiemri="Kelmendi", Email="elona.k@email.com", Telefoni="+383 45 100 005", DataLindjes=new DateTime(1995,5,14), Gjinia="F", DataRegjistrimit=DateTime.UtcNow.AddMonths(-4) },
@@ -139,7 +160,7 @@ public static class SeedData
         await db.SaveChangesAsync();
 
         var rnd = new Random(42);
-        var statuset = new[] { "Planifikuar", "Konfirmuar", "Perfunduar", "Anuluar" };
+        var statuset = new[] { AppointmentStatus.Planifikuar, AppointmentStatus.Konfirmuar, AppointmentStatus.Perfunduar, AppointmentStatus.Anuluar };
 
         // TERMINET
         var terminet = new List<Termin>();
@@ -158,7 +179,8 @@ public static class SeedData
                 DataTerminit = DateTime.UtcNow.AddDays(days),
                 OraFillimit = new TimeSpan(hour, 0, 0),
                 OraMbarimit = new TimeSpan(hour + 1, sherbim.KohezgjatjaMin % 60, 0),
-                Statusi = days < -5 ? "Perfunduar" : days < 0 ? statuset[rnd.Next(4)] : "Planifikuar",
+                Statusi = days < -5 ? AppointmentStatus.Perfunduar : days < 0 ? statuset[rnd.Next(4)] : AppointmentStatus.Planifikuar,
+                Lokacioni = primaryLocation,
             });
         }
         db.Terminet.AddRange(terminet);
@@ -195,7 +217,7 @@ public static class SeedData
 
         // Therapist user → linked to first terapist row
         var defaultTerapist = terapistet.FirstOrDefault();
-        await EnsureUserWithRoleAsync(
+        var defaultTherapistUser = await EnsureUserWithRoleAsync(
             userManager,
             "therapist@wellness.com",
             "Therapist123!",
@@ -203,9 +225,14 @@ public static class SeedData
             defaultTerapist?.Mbiemri ?? "Krasniqi",
             "Therapist",
             terapistId: defaultTerapist?.TerapistId.ToString());
+        if (defaultTerapist is not null && defaultTherapistUser is not null)
+        {
+            defaultTerapist.UserId = defaultTherapistUser.Id;
+            await db.SaveChangesAsync();
+        }
 
         // 10. SAMPLE CLINICAL NOTES (one per finished termin's first-3)
-        var finishedTerminet = terminet.Where(t => t.Statusi == "Perfunduar").Take(6).ToList();
+        var finishedTerminet = terminet.Where(t => t.Statusi == AppointmentStatus.Perfunduar).Take(6).ToList();
         var noteSamples = new[] {
             ("Anamnese", "Klienti ankohet për dhimbje në shpinë; histori tre javë."),
             ("Trajtim", "Aplikuar masazh terapeutik 60 min, fokus në muskulin trapez."),
@@ -266,7 +293,7 @@ public static class SeedData
         await db.SaveChangesAsync();
     }
 
-    private static async Task EnsureUserWithRoleAsync(
+    private static async Task<ApplicationUser?> EnsureUserWithRoleAsync(
         UserManager<ApplicationUser> userManager,
         string email,
         string password,
@@ -292,7 +319,7 @@ public static class SeedData
             };
 
             var create = await userManager.CreateAsync(user, password);
-            if (!create.Succeeded) return;
+            if (!create.Succeeded) return null;
         }
         else
         {
@@ -308,5 +335,45 @@ public static class SeedData
         {
             await userManager.AddToRoleAsync(user, role);
         }
+
+        return user;
+    }
+
+    private static async Task EnsureTemplatesAsync(ApplicationDbContext db)
+    {
+        var defaults = new[]
+        {
+            new Template
+            {
+                Key = "appointment-reminder",
+                Name = "Kujtese termini",
+                Channel = TemplateChannel.Email,
+                Subject = "Kujtese: Termini juaj per {{ServiceName}}",
+                Body = "Pershendetje {{ClientName}},<br/>Ju kujtojme se neser keni terminin per {{ServiceName}} me {{TherapistName}} ne oren {{StartTime}}."
+            },
+            new Template
+            {
+                Key = "appointment-reminder",
+                Name = "Kujtese termini SMS",
+                Channel = TemplateChannel.Sms,
+                Body = "Wellness House: neser keni termin per {{ServiceName}} ne {{StartTime}} me {{TherapistName}}."
+            },
+            new Template
+            {
+                Key = "reschedule-proposed",
+                Name = "Propozim ndryshimi termini",
+                Channel = TemplateChannel.Email,
+                Subject = "Propozim per ndryshim termini",
+                Body = "Pershendetje {{ClientName}},<br/>Terapisti propozoi orar te ri: {{ProposedStart}}. Ju lutem aprovojeni ose refuzojeni ne portal."
+            }
+        };
+
+        foreach (var template in defaults)
+        {
+            var exists = await db.Templates.AnyAsync(t => t.Key == template.Key && t.Channel == template.Channel);
+            if (!exists) db.Templates.Add(template);
+        }
+
+        await db.SaveChangesAsync();
     }
 }

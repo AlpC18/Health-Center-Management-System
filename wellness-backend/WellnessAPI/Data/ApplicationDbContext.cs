@@ -34,6 +34,10 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<KlientShenim> KlientShenime => Set<KlientShenim>();
     public DbSet<KlientMatje> KlientMatjet => Set<KlientMatje>();
     public DbSet<KlientPika> KlientPikat => Set<KlientPika>();
+    public DbSet<Lokacioni> Lokacionet => Set<Lokacioni>();
+    public DbSet<ConsentLog> ConsentLogs => Set<ConsentLog>();
+    public DbSet<Template> Templates => Set<Template>();
+    public DbSet<Notification> Notifications => Set<Notification>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -55,11 +59,17 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
              .HasForeignKey(r => r.UserId).OnDelete(DeleteBehavior.Cascade);
         });
 
+        builder.Entity<ApplicationUser>(e => {
+            e.Property(u => u.SmsOptIn).HasDefaultValue(true);
+        });
+
         builder.Entity<Klient>(e => {
             e.HasKey(k => k.KlientId);
             e.Property(k => k.Emri).IsRequired().HasMaxLength(100);
             e.Property(k => k.Mbiemri).IsRequired().HasMaxLength(100);
             e.Property(k => k.Email).IsRequired().HasMaxLength(200);
+            e.Property(k => k.LoyaltyTier).IsRequired().HasMaxLength(50).HasDefaultValue("Bronze");
+            e.Property(k => k.DiscountPercent).HasColumnType("decimal(5,2)");
             e.HasIndex(k => k.Email).IsUnique();
         });
 
@@ -74,17 +84,25 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             e.Property(t => t.Emri).IsRequired().HasMaxLength(100);
             e.Property(t => t.Mbiemri).IsRequired().HasMaxLength(100);
             e.Property(t => t.Email).IsRequired().HasMaxLength(200);
+            e.Property(t => t.UserId).HasMaxLength(450);
             e.HasIndex(t => t.Email).IsUnique();
+            e.HasIndex(t => t.UserId).IsUnique();
+            e.HasOne(t => t.Lokacioni).WithMany(l => l.Terapistet)
+             .HasForeignKey(t => t.LokacioniId).OnDelete(DeleteBehavior.SetNull);
         });
 
         builder.Entity<Termin>(e => {
             e.HasKey(t => t.TerminId);
+            e.Property(t => t.Statusi).HasConversion<string>().HasMaxLength(40);
+            e.Property(t => t.RescheduleProposedByUserId).HasMaxLength(450);
             e.HasOne(t => t.Klienti).WithMany(k => k.Terminet)
              .HasForeignKey(t => t.KlientId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(t => t.Sherbimi).WithMany(s => s.Terminet)
              .HasForeignKey(t => t.SherbimId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(t => t.Terapisti).WithMany(t => t.Terminet)
              .HasForeignKey(t => t.TerapistId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(t => t.Lokacioni).WithMany(l => l.Terminet)
+             .HasForeignKey(t => t.LokacioniId).OnDelete(DeleteBehavior.SetNull);
         });
 
         builder.Entity<PaketaWellness>(e => {
@@ -100,6 +118,48 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             e.HasOne(a => a.Paketa).WithMany(p => p.Anetaresimet)
              .HasForeignKey(a => a.PaketId).OnDelete(DeleteBehavior.Restrict);
             e.Property(a => a.CmimiPaguar).HasColumnType("decimal(10,2)");
+            e.Property(a => a.DiscountPercent).HasColumnType("decimal(5,2)");
+            e.Property(a => a.PaymentStatus).IsRequired().HasMaxLength(40).HasDefaultValue("Manual");
+            e.HasIndex(a => a.StripeSessionId);
+        });
+
+        builder.Entity<Lokacioni>(e => {
+            e.HasKey(l => l.LokacioniId);
+            e.Property(l => l.Emri).IsRequired().HasMaxLength(150);
+            e.Property(l => l.Adresa).HasMaxLength(250);
+            e.Property(l => l.Telefoni).HasMaxLength(50);
+            e.HasIndex(l => l.Emri).IsUnique();
+        });
+
+        builder.Entity<ConsentLog>(e => {
+            e.HasKey(c => c.ConsentLogId);
+            e.Property(c => c.ConsentType).IsRequired().HasMaxLength(100);
+            e.Property(c => c.Version).IsRequired().HasMaxLength(50);
+            e.Property(c => c.UserId).HasMaxLength(450);
+            e.HasIndex(c => new { c.UserId, c.ConsentType, c.Version });
+            e.HasIndex(c => new { c.KlientId, c.ConsentType, c.Version });
+            e.HasOne(c => c.Klienti).WithMany(k => k.ConsentLogs)
+             .HasForeignKey(c => c.KlientId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        builder.Entity<Template>(e => {
+            e.HasKey(t => t.TemplateId);
+            e.Property(t => t.Key).IsRequired().HasMaxLength(120);
+            e.Property(t => t.Name).IsRequired().HasMaxLength(160);
+            e.Property(t => t.Channel).HasConversion<string>().HasMaxLength(20);
+            e.Property(t => t.Subject).HasMaxLength(250);
+            e.Property(t => t.Body).IsRequired();
+            e.HasIndex(t => new { t.Key, t.Channel }).IsUnique();
+        });
+
+        builder.Entity<Notification>(e => {
+            e.HasKey(n => n.NotificationId);
+            e.Property(n => n.UserId).IsRequired().HasMaxLength(450);
+            e.Property(n => n.Type).IsRequired().HasMaxLength(60);
+            e.Property(n => n.Title).IsRequired().HasMaxLength(200);
+            e.Property(n => n.Message).IsRequired().HasMaxLength(1000);
+            e.Property(n => n.Link).HasMaxLength(300);
+            e.HasIndex(n => new { n.UserId, n.IsRead, n.CreatedAt });
         });
 
         builder.Entity<Models.Domain.Program>(e => {

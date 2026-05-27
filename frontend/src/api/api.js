@@ -94,6 +94,13 @@ export const authApi = {
   resetPassword: (data) => api.post('/auth/reset-password', data),
 }
 
+export const twoFactorApi = {
+  status: () => api.get('/2fa/status'),
+  enroll: () => api.post('/2fa/enroll', {}),
+  verify: (code) => api.post('/2fa/verify', { code }),
+  disable: (code) => api.post('/2fa/disable', { code }),
+}
+
 export const klientetApi = {
   ...crudApi('/klientet'),
   uploadFoto: (id, file) => {
@@ -126,7 +133,8 @@ export const vlereiisimetApi = {
 
 export const terminetApi = {
   ...crudApi('/terminet'),
-  getMy: () => api.get('/terminet/my')
+  getMy: () => api.get('/terminet/my'),
+  proposeReschedule: (id, data) => api.post(`/terminet/${id}/reschedule-proposal`, data),
 }
 
 // Build a query string for optional date-range params.
@@ -215,11 +223,47 @@ export const therapistPortalApi = {
   },
   myClients: () => api.get('/terapist-portal/my-clients'),
   completeAppointment: (terminId) => api.post(`/terapist-portal/appointments/${terminId}/complete`),
+  proposeReschedule: (terminId, data) => api.post(`/terminet/${terminId}/reschedule-proposal`, data),
 }
 
 // Recurring termin booking
 export const recurringTerminetApi = {
   create: (data) => api.post('/terminet/recurring', data),
+}
+
+export const notificationsApi = {
+  getAll: (params = {}) => api.get('/notifications', { params }),
+  markRead: (id) => api.patch(`/notifications/${id}/read`, {}),
+}
+
+export const consentApi = {
+  mine: () => api.get('/consents/mine'),
+  accept: (data) => api.post('/consents/accept', data),
+}
+
+export const privacyApi = {
+  exportMine: () => api.get('/privacy/export'),
+  eraseMine: () => api.post('/privacy/erase', {}),
+  exportClient: (klientId) => api.get(`/privacy/admin/klient/${klientId}/export`),
+  eraseClient: (klientId) => api.post(`/privacy/admin/klient/${klientId}/erase`, {}),
+}
+
+export const templatesApi = {
+  getAll: () => api.get('/templates'),
+  create: (data) => api.post('/templates', data),
+  update: (id, data) => api.put(`/templates/${id}`, data),
+  delete: (id) => api.delete(`/templates/${id}`),
+}
+
+export const lokacionetApi = {
+  getAll: () => api.get('/lokacionet'),
+  create: (data) => api.post('/lokacionet', data),
+  update: (id, data) => api.put(`/lokacionet/${id}`, data),
+  delete: (id) => api.delete(`/lokacionet/${id}`),
+}
+
+export const paymentsApi = {
+  createMembershipCheckout: (data) => api.post('/payments/stripe/memberships/checkout', data),
 }
 
 export default api
@@ -229,12 +273,16 @@ export const portalApi = {
   getProfili: () => api.get('/portal/profili'),
   updateProfili: (data) => api.put('/portal/profili', data),
   getTerminet: (statusi) => api.get(`/portal/terminet${statusi ? '?statusi=' + statusi : ''}`),
+  quoteTermin: (sherbimId) => api.get(`/portal/terminet/quote?sherbimId=${sherbimId}`),
   createTermin: (data) => api.post('/portal/terminet', data),
   annulTermin: (id) => api.delete(`/portal/terminet/${id}`),
+  approveReschedule: (id) => api.post(`/portal/terminet/${id}/reschedule/approve`, {}),
+  declineReschedule: (id) => api.post(`/portal/terminet/${id}/reschedule/decline`, {}),
   getAnetaresimi: () => api.get('/portal/anetaresimi'),
   getSherbimet: () => api.get('/portal/sherbimet'),
   getTerapistet: () => api.get('/portal/terapistet'),
   getPaketat: () => api.get('/portal/paketat'),
+  quotePaketa: (paketId) => api.get(`/portal/paketat/${paketId}/quote`),
   getProduktet: () => api.get('/portal/produktet'),
   blejProdukt: (data) => api.post('/portal/produktet/blej', data),
   getShitjet: () => api.get('/portal/shitjet'),

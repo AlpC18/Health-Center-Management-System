@@ -159,6 +159,7 @@ const statusMap = {
   Aktiv: 'badge-green',
   Planifikuar: 'badge-blue',
   Konfirmuar: 'badge-green',
+  NdryshimPropozuar: 'badge-yellow',
   Anuluar: 'badge-red',
   Perfunduar: 'badge-gray',
   Skaduar: 'badge-yellow',

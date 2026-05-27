@@ -1,5 +1,20 @@
 namespace WellnessAPI.Models.Domain;
 
+public enum AppointmentStatus
+{
+    Planifikuar,
+    Konfirmuar,
+    NdryshimPropozuar,
+    Perfunduar,
+    Anuluar
+}
+
+public enum TemplateChannel
+{
+    Email,
+    Sms
+}
+
 public class Klient
 {
     public int KlientId { get; set; }
@@ -12,11 +27,16 @@ public class Klient
     public string? KushtetShendetesore { get; set; }
     public string? FotoPath { get; set; }
     public DateTime DataRegjistrimit { get; set; } = DateTime.UtcNow;
+    public string LoyaltyTier { get; set; } = "Bronze";
+    public decimal DiscountPercent { get; set; } = 0;
+    public bool IsDeleted { get; set; } = false;
+    public DateTime? DeletedAt { get; set; }
     public ICollection<Termin> Terminet { get; set; } = new List<Termin>();
     public ICollection<Anetaresim> Anetaresimet { get; set; } = new List<Anetaresim>();
     public ICollection<KlientProgram> KlientProgramet { get; set; } = new List<KlientProgram>();
     public ICollection<ShitjeProdukteve> ShitjetProduktet { get; set; } = new List<ShitjeProdukteve>();
     public ICollection<Vleresim> Vlereisimet { get; set; } = new List<Vleresim>();
+    public ICollection<ConsentLog> ConsentLogs { get; set; } = new List<ConsentLog>();
 }
 
 public class Sherbim
@@ -35,6 +55,7 @@ public class Sherbim
 public class Terapist
 {
     public int TerapistId { get; set; }
+    public string? UserId { get; set; }
     public string Emri { get; set; } = string.Empty;
     public string Mbiemri { get; set; } = string.Empty;
     public string? Specializimi { get; set; }
@@ -42,6 +63,8 @@ public class Terapist
     public string Email { get; set; } = string.Empty;
     public string? Telefoni { get; set; }
     public bool Aktiv { get; set; } = true;
+    public int? LokacioniId { get; set; }
+    public Lokacioni? Lokacioni { get; set; }
     public ICollection<Termin> Terminet { get; set; } = new List<Termin>();
     public ICollection<Vleresim> Vlereisimet { get; set; } = new List<Vleresim>();
 }
@@ -58,8 +81,17 @@ public class Termin
     public DateTime DataTerminit { get; set; }
     public TimeSpan OraFillimit { get; set; }
     public TimeSpan OraMbarimit { get; set; }
-    public string Statusi { get; set; } = "Planifikuar";
+    public AppointmentStatus Statusi { get; set; } = AppointmentStatus.Planifikuar;
     public string? Shenimet { get; set; }
+    public int? LokacioniId { get; set; }
+    public Lokacioni? Lokacioni { get; set; }
+    public DateTime? ProposedStart { get; set; }
+    public DateTime? ProposedEnd { get; set; }
+    public string? RescheduleProposedByUserId { get; set; }
+    public string? RescheduleNote { get; set; }
+    public DateTime? RescheduleProposedAt { get; set; }
+    public DateTime? ReminderEmailSentAt { get; set; }
+    public DateTime? ReminderSmsSentAt { get; set; }
 }
 
 public class PaketaWellness
@@ -85,6 +117,63 @@ public class Anetaresim
     public DateTime DataMbarimit { get; set; }
     public string Statusi { get; set; } = "Aktiv";
     public decimal CmimiPaguar { get; set; }
+    public decimal DiscountPercent { get; set; } = 0;
+    public string? PaymentProvider { get; set; }
+    public string? PaymentReference { get; set; }
+    public string? StripeSessionId { get; set; }
+    public string PaymentStatus { get; set; } = "Manual";
+}
+
+public class Lokacioni
+{
+    public int LokacioniId { get; set; }
+    public string Emri { get; set; } = string.Empty;
+    public string? Adresa { get; set; }
+    public string? Telefoni { get; set; }
+    public bool Aktiv { get; set; } = true;
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public ICollection<Terapist> Terapistet { get; set; } = new List<Terapist>();
+    public ICollection<Termin> Terminet { get; set; } = new List<Termin>();
+}
+
+public class ConsentLog
+{
+    public int ConsentLogId { get; set; }
+    public int? KlientId { get; set; }
+    public Klient? Klienti { get; set; }
+    public string? UserId { get; set; }
+    public string ConsentType { get; set; } = "PrivacyPolicy";
+    public string Version { get; set; } = "v1";
+    public bool Accepted { get; set; } = true;
+    public string? IpAddress { get; set; }
+    public string? UserAgent { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+}
+
+public class Template
+{
+    public int TemplateId { get; set; }
+    public string Key { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public TemplateChannel Channel { get; set; } = TemplateChannel.Email;
+    public string? Subject { get; set; }
+    public string Body { get; set; } = string.Empty;
+    public bool Active { get; set; } = true;
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+    public string? UpdatedByUserId { get; set; }
+}
+
+public class Notification
+{
+    public int NotificationId { get; set; }
+    public string UserId { get; set; } = string.Empty;
+    public string Type { get; set; } = "Info";
+    public string Title { get; set; } = string.Empty;
+    public string Message { get; set; } = string.Empty;
+    public string? Link { get; set; }
+    public bool IsRead { get; set; } = false;
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime? ReadAt { get; set; }
 }
 
 public class Program

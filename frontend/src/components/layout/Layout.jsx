@@ -28,6 +28,10 @@ import {
   Megaphone,
   Tag,
   CalendarOff,
+  Bell,
+  FileText,
+  KeyRound,
+  MapPin,
 } from 'lucide-react'
 import useAuthStore from '../../store/authStore'
 import useThemeStore from '../../store/themeStore'
@@ -59,6 +63,10 @@ const adminNavItems = [
   { to: '/lajmerimet', labelKey: 'Lajmërimet', icon: Megaphone },
   { to: '/zbritjet', labelKey: 'Zbritjet', icon: Tag },
   { to: '/pushimet', labelKey: 'Pushimet', icon: CalendarOff },
+  { to: '/notifications', labelKey: 'Njoftimet', icon: Bell },
+  { to: '/templates', labelKey: 'Templates', icon: FileText },
+  { to: '/locations', labelKey: 'Lokacionet', icon: MapPin },
+  { to: '/security/2fa', labelKey: '2FA', icon: KeyRound },
   { to: '/audit-logs', labelKey: 'auditLogs', icon: Activity },
   { to: '/calendar', labelKey: 'calendar', icon: CalendarDays },
   { to: '/advanced', labelKey: 'Advanced', icon: Sparkles },
@@ -69,6 +77,8 @@ const clientNavItems = [
   { to: '/portal', labelKey: 'Portal', icon: LayoutDashboard },
   { to: '/calendar', labelKey: 'Terminet e Mia', icon: CalendarDays },
   { to: '/profile', labelKey: 'Profili Im', icon: Users },
+  { to: '/notifications', labelKey: 'Njoftimet', icon: Bell },
+  { to: '/security/2fa', labelKey: '2FA', icon: KeyRound },
 ]
 
 // Therapist self-service: their portal + the screens they need to do work.
@@ -77,6 +87,8 @@ const therapistNavItems = [
   { to: '/terminet', labelKey: 'appointments', icon: Calendar },
   { to: '/klientet', labelKey: 'clients', icon: Users },
   { to: '/calendar', labelKey: 'calendar', icon: CalendarDays },
+  { to: '/notifications', labelKey: 'Njoftimet', icon: Bell },
+  { to: '/security/2fa', labelKey: '2FA', icon: KeyRound },
   { to: '/profile', labelKey: 'Profili Im', icon: Users },
 ]
 

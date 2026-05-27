@@ -100,7 +100,7 @@ public class ExportController : ControllerBase
             worksheet.Cell(i + 2, 4).Value = $"{t.Terapisti?.Emri} {t.Terapisti?.Mbiemri}";
             worksheet.Cell(i + 2, 5).Value = t.DataTerminit.ToString("yyyy-MM-dd");
             worksheet.Cell(i + 2, 6).Value = $"{t.OraFillimit} - {t.OraMbarimit}";
-            worksheet.Cell(i + 2, 7).Value = t.Statusi;
+            worksheet.Cell(i + 2, 7).Value = t.Statusi.ToString();
         }
 
         worksheet.Columns().AdjustToContents();

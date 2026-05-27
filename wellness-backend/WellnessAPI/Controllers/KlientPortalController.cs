@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using WellnessAPI.Data;
 using WellnessAPI.DTOs;
+using WellnessAPI.Hubs;
 using WellnessAPI.Models.Domain;
 using WellnessAPI.Models.Identity;
 using WellnessAPI.Services;
@@ -20,17 +21,20 @@ public class KlientPortalController : ControllerBase
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly EmailService _email;
     private readonly ILogger<KlientPortalController> _logger;
+    private readonly NotificationService _notifications;
 
     public KlientPortalController(
         ApplicationDbContext db,
         UserManager<ApplicationUser> userManager,
         EmailService email,
-        ILogger<KlientPortalController> logger)
+        ILogger<KlientPortalController> logger,
+        NotificationService notifications)
     {
         _db = db;
         _userManager = userManager;
         _email = email;
         _logger = logger;
+        _notifications = notifications;
     }
 
     private async Task SendPortalBookingEmailAsync(Termin t)
@@ -85,14 +89,14 @@ public class KlientPortalController : ControllerBase
             .Include(t => t.Terapisti)
             .Where(t => t.KlientId == klientId
                 && t.DataTerminit >= DateTime.UtcNow
-                && t.Statusi != "Anuluar")
+                && t.Statusi != AppointmentStatus.Anuluar)
             .OrderBy(t => t.DataTerminit)
             .FirstOrDefaultAsync();
 
         return Ok(new {
             totalTerminet = terminet.Count,
             terminetAktive = terminet.Count(t =>
-                t.Statusi == "Planifikuar" || t.Statusi == "Konfirmuar"),
+                t.Statusi == AppointmentStatus.Planifikuar || t.Statusi == AppointmentStatus.Konfirmuar || t.Statusi == AppointmentStatus.NdryshimPropozuar),
             anetaresimiAktiv = anetaresimi,
             totalShpenzuar,
             terminIArdhshem = terminIArdhshem == null ? null : new {
@@ -102,7 +106,7 @@ public class KlientPortalController : ControllerBase
                 dataTerminit = terminIArdhshem.DataTerminit,
                 oraFillimit = terminIArdhshem.OraFillimit,
                 oraMbarimit = terminIArdhshem.OraMbarimit,
-                statusi = terminIArdhshem.Statusi,
+                statusi = terminIArdhshem.Statusi.ToString(),
             }
         });
     }
@@ -117,7 +121,8 @@ public class KlientPortalController : ControllerBase
         return Ok(new KlientResponseDto(
             k.KlientId, k.Emri, k.Mbiemri, k.Email,
             k.Telefoni, k.DataLindjes, k.Gjinia,
-            k.KushtetShendetesore, k.FotoPath, k.DataRegjistrimit));
+            k.KushtetShendetesore, k.FotoPath, k.DataRegjistrimit,
+            k.LoyaltyTier, k.DiscountPercent));
     }
 
     [HttpPut("profili")]
@@ -137,7 +142,8 @@ public class KlientPortalController : ControllerBase
         return Ok(new KlientResponseDto(
             k.KlientId, k.Emri, k.Mbiemri, k.Email,
             k.Telefoni, k.DataLindjes, k.Gjinia,
-            k.KushtetShendetesore, k.FotoPath, k.DataRegjistrimit));
+            k.KushtetShendetesore, k.FotoPath, k.DataRegjistrimit,
+            k.LoyaltyTier, k.DiscountPercent));
     }
 
     [HttpGet("terminet")]
@@ -151,7 +157,10 @@ public class KlientPortalController : ControllerBase
             .Where(t => t.KlientId == klientId)
             .AsQueryable();
         if (!string.IsNullOrEmpty(statusi))
-            q = q.Where(t => t.Statusi == statusi);
+        {
+            var parsedStatus = AppointmentStatusWorkflow.ParseOrDefault(statusi);
+            q = q.Where(t => t.Statusi == parsedStatus);
+        }
         var terminet = await q.OrderByDescending(t => t.DataTerminit)
             .Select(t => new TerminResponseDto(
                 t.TerminId, t.KlientId, "",
@@ -159,9 +168,28 @@ public class KlientPortalController : ControllerBase
                 t.TerapistId,
                 $"{t.Terapisti.Emri} {t.Terapisti.Mbiemri}",
                 t.DataTerminit, t.OraFillimit, t.OraMbarimit,
-                t.Statusi, t.Shenimet))
+                t.Statusi.ToString(), t.Shenimet, t.LokacioniId, t.Lokacioni != null ? t.Lokacioni.Emri : null,
+                t.ProposedStart, t.ProposedEnd, t.RescheduleNote))
             .ToListAsync();
         return Ok(terminet);
+    }
+
+    [HttpGet("terminet/quote")]
+    public async Task<IActionResult> QuoteTermin([FromQuery] int sherbimId)
+    {
+        var klientId = await GetKlientIdAsync();
+        if (klientId == null) return NotFound();
+        var klient = await _db.Klientet.AsNoTracking().FirstOrDefaultAsync(k => k.KlientId == klientId);
+        var sherbim = await _db.Sherbimet.AsNoTracking().FirstOrDefaultAsync(s => s.SherbimId == sherbimId);
+        if (klient is null || sherbim is null) return NotFound();
+        var discountAmount = Math.Round(sherbim.Cmimi * klient.DiscountPercent / 100m, 2);
+        return Ok(new AppointmentQuoteDto(
+            sherbim.SherbimId,
+            sherbim.Cmimi,
+            klient.LoyaltyTier,
+            klient.DiscountPercent,
+            discountAmount,
+            Math.Max(0, sherbim.Cmimi - discountAmount)));
     }
 
     [HttpPost("terminet")]
@@ -178,7 +206,7 @@ public class KlientPortalController : ControllerBase
 
         var sameDayTermine = await _db.Terminet
             .Where(t => t.TerapistId == dto.TerapistId
-                        && t.Statusi != "Anuluar"
+                        && t.Statusi != AppointmentStatus.Anuluar
                         && t.DataTerminit >= dayStart
                         && t.DataTerminit < dayEnd)
             .Select(t => new { t.OraFillimit, t.OraMbarimit })
@@ -198,6 +226,11 @@ public class KlientPortalController : ControllerBase
                 && p.Statusi == "Aprovuar" && p.DataFillimit < dayEnd && p.DataMbarimit >= dayStart))
             return Conflict(new { message = "Terapisti është në pushim në këtë datë. Zgjidhni datë tjetër." });
 
+        var terapistLocationId = await _db.Terapistet.AsNoTracking()
+            .Where(t => t.TerapistId == dto.TerapistId)
+            .Select(t => t.LokacioniId)
+            .FirstOrDefaultAsync();
+
         var termin = new Termin
         {
             KlientId = klientId.Value,
@@ -206,8 +239,9 @@ public class KlientPortalController : ControllerBase
             DataTerminit = dto.DataTerminit,
             OraFillimit = dto.OraFillimit,
             OraMbarimit = dto.OraMbarimit,
-            Statusi = "Planifikuar",
-            Shenimet = dto.Shenimet
+            Statusi = AppointmentStatus.Planifikuar,
+            Shenimet = dto.Shenimet,
+            LokacioniId = dto.LokacioniId ?? terapistLocationId
         };
         _db.Terminet.Add(termin);
         await _db.SaveChangesAsync();
@@ -227,9 +261,97 @@ public class KlientPortalController : ControllerBase
             return BadRequest(new {
                 message = "Nuk mund të anulohet. Koha ka kaluar (24 orë para terminit)."
             });
-        termin.Statusi = "Anuluar";
+        AppointmentStatusWorkflow.EnsureTransition(termin.Statusi, AppointmentStatus.Anuluar);
+        termin.Statusi = AppointmentStatus.Anuluar;
         await _db.SaveChangesAsync();
         return Ok(new { message = "Termini u anulua." });
+    }
+
+    [HttpPost("terminet/{id:int}/reschedule/approve")]
+    public async Task<IActionResult> ApproveReschedule(int id)
+    {
+        var klientId = await GetKlientIdAsync();
+        if (klientId == null) return NotFound();
+        var termin = await _db.Terminet
+            .Include(t => t.Sherbimi)
+            .Include(t => t.Terapisti)
+            .FirstOrDefaultAsync(t => t.TerminId == id && t.KlientId == klientId);
+        if (termin is null) return NotFound(new { message = "Termini nuk u gjet." });
+        if (termin.Statusi != AppointmentStatus.NdryshimPropozuar || termin.ProposedStart is null || termin.ProposedEnd is null)
+            return BadRequest(new { message = "Nuk ka propozim aktiv per kete termin." });
+
+        var proposedStart = termin.ProposedStart.Value;
+        var proposedEnd = termin.ProposedEnd.Value;
+        var dayStart = proposedStart.Date;
+        var dayEnd = dayStart.AddDays(1);
+        var startTime = proposedStart.TimeOfDay;
+        var endTime = proposedEnd.TimeOfDay;
+        var sameDay = await _db.Terminet
+            .Where(t => t.TerminId != termin.TerminId
+                        && t.TerapistId == termin.TerapistId
+                        && t.Statusi != AppointmentStatus.Anuluar
+                        && t.DataTerminit >= dayStart
+                        && t.DataTerminit < dayEnd)
+            .Select(t => new { t.OraFillimit, t.OraMbarimit })
+            .ToListAsync();
+        var conflict = sameDay.Any(t =>
+            (startTime >= t.OraFillimit && startTime < t.OraMbarimit) ||
+            (endTime > t.OraFillimit && endTime <= t.OraMbarimit) ||
+            (startTime <= t.OraFillimit && endTime >= t.OraMbarimit));
+        if (conflict) return Conflict(new { message = "Orari i propozuar nuk eshte me i lire." });
+
+        termin.DataTerminit = dayStart;
+        termin.OraFillimit = startTime;
+        termin.OraMbarimit = endTime;
+        termin.Statusi = AppointmentStatus.Konfirmuar;
+        termin.ProposedStart = null;
+        termin.ProposedEnd = null;
+        termin.RescheduleNote = null;
+        termin.RescheduleProposedAt = null;
+        await _db.SaveChangesAsync();
+
+        await _notifications.NotifyUserAsync(
+            termin.Terapisti.UserId,
+            NotificationEvents.RescheduleApproved,
+            "Ndryshimi u aprovua",
+            $"Klienti aprovoi orarin e ri per {termin.Sherbimi.EmriSherbimit}.",
+            "Reschedule",
+            "/terapist-portal",
+            new { terminId = termin.TerminId, dataTerminit = termin.DataTerminit, oraFillimit = termin.OraFillimit });
+
+        return Ok(new { success = true, message = "Orari i ri u aprovua.", statusi = termin.Statusi.ToString() });
+    }
+
+    [HttpPost("terminet/{id:int}/reschedule/decline")]
+    public async Task<IActionResult> DeclineReschedule(int id)
+    {
+        var klientId = await GetKlientIdAsync();
+        if (klientId == null) return NotFound();
+        var termin = await _db.Terminet
+            .Include(t => t.Sherbimi)
+            .Include(t => t.Terapisti)
+            .FirstOrDefaultAsync(t => t.TerminId == id && t.KlientId == klientId);
+        if (termin is null) return NotFound(new { message = "Termini nuk u gjet." });
+        if (termin.Statusi != AppointmentStatus.NdryshimPropozuar)
+            return BadRequest(new { message = "Nuk ka propozim aktiv per kete termin." });
+
+        termin.Statusi = AppointmentStatus.Konfirmuar;
+        termin.ProposedStart = null;
+        termin.ProposedEnd = null;
+        termin.RescheduleNote = null;
+        termin.RescheduleProposedAt = null;
+        await _db.SaveChangesAsync();
+
+        await _notifications.NotifyUserAsync(
+            termin.Terapisti.UserId,
+            NotificationEvents.RescheduleDeclined,
+            "Ndryshimi u refuzua",
+            $"Klienti refuzoi propozimin per {termin.Sherbimi.EmriSherbimit}.",
+            "Reschedule",
+            "/terapist-portal",
+            new { terminId = termin.TerminId });
+
+        return Ok(new { success = true, message = "Propozimi u refuzua.", statusi = termin.Statusi.ToString() });
     }
 
     [HttpGet("anetaresimi")]
@@ -245,9 +367,27 @@ public class KlientPortalController : ControllerBase
                 a.AnetaresimId, a.KlientId, "",
                 a.PaketId, a.Paketa.EmriPaketes,
                 a.DataFillimit, a.DataMbarimit,
-                a.Statusi, a.CmimiPaguar))
+                a.Statusi, a.CmimiPaguar, a.DiscountPercent, a.PaymentStatus))
             .ToListAsync();
         return Ok(list);
+    }
+
+    [HttpGet("paketat/{paketId:int}/quote")]
+    public async Task<IActionResult> QuotePaketa(int paketId)
+    {
+        var klientId = await GetKlientIdAsync();
+        if (klientId == null) return NotFound();
+        var klient = await _db.Klientet.AsNoTracking().FirstOrDefaultAsync(k => k.KlientId == klientId);
+        var paketa = await _db.PaketaWellness.AsNoTracking().FirstOrDefaultAsync(p => p.PaketId == paketId);
+        if (klient is null || paketa is null) return NotFound();
+        var discountAmount = Math.Round(paketa.Cmimi * klient.DiscountPercent / 100m, 2);
+        return Ok(new MembershipQuoteDto(
+            paketa.PaketId,
+            paketa.Cmimi,
+            klient.LoyaltyTier,
+            klient.DiscountPercent,
+            discountAmount,
+            Math.Max(0, paketa.Cmimi - discountAmount)));
     }
 
     [HttpGet("sherbimet")]
@@ -268,7 +408,7 @@ public class KlientPortalController : ControllerBase
             .Select(t => new TerapistResponseDto(
                 t.TerapistId, t.Emri, t.Mbiemri,
                 t.Specializimi, t.Licenca,
-                t.Email, t.Telefoni, t.Aktiv))
+                t.Email, t.Telefoni, t.Aktiv, t.UserId, t.LokacioniId, t.Lokacioni != null ? t.Lokacioni.Emri : null))
             .ToListAsync();
         return Ok(list);
     }

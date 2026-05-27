@@ -2,7 +2,7 @@ import { createElement, useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Calendar, CreditCard, ShoppingBag,
-  Star, Activity, User, LogOut, Menu, Package
+  Star, Activity, User, LogOut, Menu, Package, Bell, ShieldCheck, Database, KeyRound
 } from 'lucide-react'
 import useAuthStore from '../../store/authStore'
 import { authApi } from '../../api/api'
@@ -18,6 +18,10 @@ const NAV = [
   { label: 'Produktet', path: '/portal/produktet', icon: ShoppingBag },
   { label: 'Blerjet e Mia', path: '/portal/shitjet', icon: Package },
   { label: 'Vlerësimet', path: '/portal/vlereisimet', icon: Star },
+  { label: 'Njoftimet', path: '/portal/notifications', icon: Bell },
+  { label: 'Consent', path: '/portal/consent', icon: ShieldCheck },
+  { label: 'Të dhënat', path: '/portal/privacy', icon: Database },
+  { label: '2FA', path: '/portal/2fa', icon: KeyRound },
   { label: 'Profili Im', path: '/portal/profili', icon: User },
 ]
 

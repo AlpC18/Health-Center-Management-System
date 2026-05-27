@@ -23,6 +23,7 @@ public class AuthController : ControllerBase
     private readonly EmailService _emailService;
     private readonly IConfiguration _configuration;
     private readonly ILogger<AuthController> _logger;
+    private readonly TotpService _totpService;
 
     public AuthController(
         UserManager<ApplicationUser> um,
@@ -31,7 +32,8 @@ public class AuthController : ControllerBase
         IWebHostEnvironment env,
         EmailService emailService,
         IConfiguration configuration,
-        ILogger<AuthController> logger)
+        ILogger<AuthController> logger,
+        TotpService totpService)
     {
         _userManager = um;
         _tokenService = ts;
@@ -40,6 +42,7 @@ public class AuthController : ControllerBase
         _emailService = emailService;
         _configuration = configuration;
         _logger = logger;
+        _totpService = totpService;
     }
 
     /// <summary>Confirms a user's email from the link sent at registration.</summary>
@@ -83,7 +86,10 @@ public class AuthController : ControllerBase
             UserName = dto.Email,
             Email = dto.Email,
             FirstName = dto.FirstName,
-            LastName = dto.LastName
+            LastName = dto.LastName,
+            PhoneNumber = dto.Telefoni,
+            PrivacyPolicyAccepted = dto.AcceptedConsent,
+            PrivacyPolicyAcceptedAt = dto.AcceptedConsent ? DateTime.UtcNow : null
         };
 
         var result = await _userManager.CreateAsync(user, dto.Password);
@@ -105,6 +111,40 @@ public class AuthController : ControllerBase
             _db.Klientet.Add(klient);
             await _db.SaveChangesAsync();
             user.KlientId = klient.KlientId.ToString();
+            await _userManager.UpdateAsync(user);
+
+            if (dto.AcceptedConsent)
+            {
+                _db.ConsentLogs.Add(new ConsentLog
+                {
+                    KlientId = klient.KlientId,
+                    UserId = user.Id,
+                    ConsentType = "PrivacyPolicy",
+                    Version = dto.ConsentVersion ?? "v1",
+                    Accepted = true,
+                    IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString(),
+                    UserAgent = Request.Headers.UserAgent.ToString(),
+                    CreatedAt = DateTime.UtcNow
+                });
+                await _db.SaveChangesAsync();
+            }
+        }
+        else if (role == "Therapist")
+        {
+            var terapist = new Terapist
+            {
+                Emri = dto.FirstName,
+                Mbiemri = dto.LastName,
+                Email = dto.Email,
+                Telefoni = dto.Telefoni,
+                Specializimi = dto.Specializimi,
+                Licenca = dto.Licenca,
+                UserId = user.Id,
+                Aktiv = true
+            };
+            _db.Terapistet.Add(terapist);
+            await _db.SaveChangesAsync();
+            user.TerapistId = terapist.TerapistId.ToString();
             await _userManager.UpdateAsync(user);
         }
 
@@ -144,6 +184,26 @@ public class AuthController : ControllerBase
 
         var roles = await _userManager.GetRolesAsync(user);
         var role = roles.FirstOrDefault() ?? "Klient";
+
+        if (user.TwoFactorEnabled && !string.IsNullOrWhiteSpace(user.TotpSecret))
+        {
+            if (string.IsNullOrWhiteSpace(dto.TwoFactorCode))
+            {
+                return Ok(new
+                {
+                    success = false,
+                    requiresTwoFactor = true,
+                    message = "Kerkohet kodi 2FA.",
+                    userId = user.Id
+                });
+            }
+
+            if (!_totpService.VerifyCode(user.TotpSecret, dto.TwoFactorCode))
+            {
+                await _userManager.AccessFailedAsync(user);
+                return Unauthorized(new { message = "Kodi 2FA eshte i pavlefshem." });
+            }
+        }
 
         var ip = HttpContext.Connection.RemoteIpAddress?.ToString();
         var access = await _tokenService.GenerateAccessTokenAsync(user);
@@ -242,7 +302,7 @@ public class AuthController : ControllerBase
 
         var roles = await _userManager.GetRolesAsync(user);
         var role = roles.FirstOrDefault() ?? "Klient";
-        var userInfo = new UserInfoDto(user.Id, user.Email ?? "", user.FirstName, user.LastName, role, user.PhoneNumber, user.Adresa);
+        var userInfo = new UserInfoDto(user.Id, user.Email ?? "", user.FirstName, user.LastName, role, user.PhoneNumber, user.Adresa, user.TwoFactorEnabled);
         return Ok(CompatUserResponse(userInfo));
     }
 
@@ -426,7 +486,8 @@ public class AuthController : ControllerBase
         ["LastName"] = user.LastName,
         ["Role"] = user.Role,
         ["Telefoni"] = user.Telefoni,
-        ["Adresa"] = user.Adresa
+        ["Adresa"] = user.Adresa,
+        ["TwoFactorEnabled"] = user.TwoFactorEnabled
     };
 
     private void WriteRefreshCookie(string refreshToken, DateTime expiresAt)

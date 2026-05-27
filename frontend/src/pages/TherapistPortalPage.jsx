@@ -13,6 +13,7 @@ function StatusBadge({ statusi }) {
   const map = {
     Planifikuar: 'bg-blue-500/10 text-blue-400 border-blue-500/30',
     Konfirmuar: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
+    NdryshimPropozuar: 'bg-amber-500/10 text-amber-400 border-amber-500/30',
     Perfunduar: 'bg-gray-500/10 text-gray-400 border-gray-500/30',
     Anuluar: 'bg-red-500/10 text-red-400 border-red-500/30',
   }
@@ -93,6 +94,71 @@ function NoteModal({ open, termin, onClose, onSaved }) {
   )
 }
 
+function RescheduleModal({ open, termin, onClose, onSaved }) {
+  const [proposedStart, setProposedStart] = useState('')
+  const [proposedEnd, setProposedEnd] = useState('')
+  const [note, setNote] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    if (open && termin) {
+      const date = termin.dataTerminit?.slice(0, 10) || new Date().toISOString().slice(0, 10)
+      setProposedStart(`${date}T${fmtInputTime(termin.oraFillimit)}`)
+      setProposedEnd(`${date}T${fmtInputTime(termin.oraMbarimit)}`)
+      setNote('')
+    }
+  }, [open, termin])
+
+  const submit = async (e) => {
+    e.preventDefault()
+    if (!proposedStart || !proposedEnd) return toast.error('Zgjidhni orarin e propozuar.')
+    setSaving(true)
+    try {
+      await therapistPortalApi.proposeReschedule(termin.terminId, {
+        proposedStart,
+        proposedEnd,
+        note,
+      })
+      toast.success('Propozimi u dergua te klienti.')
+      onSaved?.()
+      onClose()
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Propozimi deshtoi.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Modal isOpen={open} onClose={onClose} title={`Propozo orar te ri — ${termin?.klientEmri ?? ''}`} size="lg">
+      <form onSubmit={submit} className="space-y-4">
+        <div className="grid sm:grid-cols-2 gap-3">
+          <label>
+            <span className="label">Fillimi i propozuar</span>
+            <input type="datetime-local" className="input" value={proposedStart} onChange={(e) => setProposedStart(e.target.value)} />
+          </label>
+          <label>
+            <span className="label">Mbarimi i propozuar</span>
+            <input type="datetime-local" className="input" value={proposedEnd} onChange={(e) => setProposedEnd(e.target.value)} />
+          </label>
+        </div>
+        <label>
+          <span className="label">Shenim</span>
+          <textarea rows={4} className="input" value={note} onChange={(e) => setNote(e.target.value)} />
+        </label>
+        <div className="flex justify-end gap-2">
+          <button type="button" onClick={onClose} className="btn-secondary px-4 py-2">Anulo</button>
+          <button disabled={saving} className="btn-primary px-5 py-2">{saving ? 'Duke derguar...' : 'Dergo propozimin'}</button>
+        </div>
+      </form>
+    </Modal>
+  )
+}
+
+function fmtInputTime(value) {
+  return typeof value === 'string' ? value.substring(0, 5) : '09:00'
+}
+
 export default function TherapistPortalPage() {
   const [me, setMe] = useState(null)
   const [schedule, setSchedule] = useState([])
@@ -100,6 +166,7 @@ export default function TherapistPortalPage() {
   const [loading, setLoading] = useState(true)
   const [completing, setCompleting] = useState(null)
   const [noteFor, setNoteFor] = useState(null)
+  const [rescheduleFor, setRescheduleFor] = useState(null)
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
 
@@ -263,6 +330,15 @@ export default function TherapistPortalPage() {
                             {completing === t.terminId ? '...' : 'Përfundo'}
                           </button>
                         )}
+                        {(t.statusi === 'Planifikuar' || t.statusi === 'Konfirmuar') && (
+                          <button
+                            onClick={() => setRescheduleFor(t)}
+                            className="flex items-center gap-1 px-2 py-1 text-xs font-bold text-amber-400 hover:bg-amber-500/10 rounded-md transition-colors"
+                            title="Propozo orar të ri"
+                          >
+                            <RefreshCw className="w-3 h-3" /> Ndrysho
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -304,6 +380,12 @@ export default function TherapistPortalPage() {
         open={Boolean(noteFor)}
         termin={noteFor}
         onClose={() => setNoteFor(null)}
+        onSaved={fetchAll}
+      />
+      <RescheduleModal
+        open={Boolean(rescheduleFor)}
+        termin={rescheduleFor}
+        onClose={() => setRescheduleFor(null)}
         onSaved={fetchAll}
       />
     </div>

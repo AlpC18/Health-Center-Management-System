@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Calendar, X } from 'lucide-react'
+import { Calendar, Check, X } from 'lucide-react'
 import { portalApi } from '../../api/portalApi'
 import { PageLoader, StatusBadge, ConfirmDialog } from '../../components/ui'
 import toast from 'react-hot-toast'
@@ -10,6 +10,7 @@ export default function PortalTerminet() {
   const [filter, setFilter] = useState('')
   const [cancelling, setCancelling] = useState(null)
   const [cancelLoading, setCancelLoading] = useState(false)
+  const [rescheduleLoading, setRescheduleLoading] = useState(null)
 
   const fetchTerminet = useCallback(async () => {
     await Promise.resolve()
@@ -44,6 +45,21 @@ export default function PortalTerminet() {
 
   const fmtDate = (d) => new Date(d).toLocaleDateString('sq-AL')
   const fmtTime = (t) => (typeof t === 'string' ? t.substring(0, 5) : '—')
+  const fmtDateTime = (d) => (d ? new Date(d).toLocaleString('sq-AL') : '—')
+
+  const handleReschedule = async (terminId, action) => {
+    setRescheduleLoading(`${action}-${terminId}`)
+    try {
+      if (action === 'approve') await portalApi.approveReschedule(terminId)
+      else await portalApi.declineReschedule(terminId)
+      toast.success(action === 'approve' ? 'Orari i ri u aprovua.' : 'Propozimi u refuzua.')
+      fetchTerminet()
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Veprimi deshtoi.')
+    } finally {
+      setRescheduleLoading(null)
+    }
+  }
 
   if (loading) return <PageLoader />
 
@@ -100,6 +116,30 @@ export default function PortalTerminet() {
                       {fmtDate(t.dataTerminit)} • {fmtTime(t.oraFillimit)} - {fmtTime(t.oraMbarimit)}
                     </p>
                     {t.shenimet && <p className="text-xs text-gray-400 mt-1 italic">"{t.shenimet}"</p>}
+                    {t.statusi === 'NdryshimPropozuar' && (
+                      <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                        <p className="text-xs font-bold text-amber-800 uppercase">Orar i propozuar</p>
+                        <p className="text-sm text-amber-900 mt-1">{fmtDateTime(t.proposedStart)} - {fmtDateTime(t.proposedEnd)}</p>
+                        {t.rescheduleNote && <p className="text-xs text-amber-800 mt-1">{t.rescheduleNote}</p>}
+                        <div className="flex gap-2 mt-3">
+                          <button
+                            onClick={() => handleReschedule(t.terminId, 'approve')}
+                            disabled={rescheduleLoading === `approve-${t.terminId}`}
+                            className="btn-primary px-3 py-1.5 text-xs"
+                          >
+                            <Check className="w-3 h-3" />
+                            Aprovo
+                          </button>
+                          <button
+                            onClick={() => handleReschedule(t.terminId, 'decline')}
+                            disabled={rescheduleLoading === `decline-${t.terminId}`}
+                            className="btn-secondary px-3 py-1.5 text-xs"
+                          >
+                            Refuzo
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-2">

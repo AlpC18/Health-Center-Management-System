@@ -13,6 +13,7 @@ export default function PortalRezevo() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [step, setStep] = useState(1)
+  const [quote, setQuote] = useState(null)
   const [form, setForm] = useState({
     sherbimId: '',
     terapistId: '',
@@ -33,6 +34,16 @@ export default function PortalRezevo() {
 
   const selectedSherbim = sherbimet.find((s) => s.sherbimId === +form.sherbimId)
   const selectedTerapist = terapistet.find((t) => t.terapistId === +form.terapistId)
+
+  useEffect(() => {
+    if (!form.sherbimId) {
+      setQuote(null)
+      return
+    }
+    portalApi.quoteTermin(form.sherbimId)
+      .then((res) => setQuote(res.data))
+      .catch(() => setQuote(null))
+  }, [form.sherbimId])
 
   const handleSherbimSelect = (s) => {
     const [h, m] = form.oraFillimit.split(':').map(Number)
@@ -147,6 +158,7 @@ export default function PortalRezevo() {
                   <div>
                     <p className="font-semibold text-gray-900">{t.emri} {t.mbiemri}</p>
                     <p className="text-xs text-gray-500">{t.specializimi}</p>
+                    {t.lokacioniEmri && <p className="text-xs text-gray-400">{t.lokacioniEmri}</p>}
                   </div>
                 </div>
               </button>
@@ -234,8 +246,14 @@ export default function PortalRezevo() {
             ))}
             <div className="flex justify-between border-t border-green-200 pt-3">
               <span className="text-sm font-semibold text-gray-700">Çmimi:</span>
-              <span className="text-sm font-bold text-green-700">€{selectedSherbim?.cmimi}</span>
+              <span className="text-sm font-bold text-green-700">€{quote?.finalPrice ?? selectedSherbim?.cmimi}</span>
             </div>
+            {quote?.discountPercent > 0 && (
+              <div className="flex justify-between">
+                <span className="text-xs text-gray-600">Zbritja {quote.loyaltyTier}:</span>
+                <span className="text-xs font-semibold text-green-700">-{quote.discountPercent}% (€{quote.discountAmount})</span>
+              </div>
+            )}
           </div>
           <div className="flex gap-3">
             <button onClick={() => setStep(3)} className="btn-secondary">← Kthehu</button>
@@ -249,4 +267,3 @@ export default function PortalRezevo() {
     </div>
   )
 }
-
